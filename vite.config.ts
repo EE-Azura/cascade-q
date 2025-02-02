@@ -10,15 +10,13 @@ export default defineConfig({
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'CascadeQ',
       formats: ['es', 'cjs'],
-      fileName: (format: string) =>
-        format === 'es' ? `${packageName}.js` : `${packageName}.cjs`
+      fileName: (format: string) => (format === 'es' ? `${packageName}.js` : `${packageName}.cjs`)
     },
     sourcemap: true
   },
-  plugins: [dts()],
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src')
-    }
-  }
+  test: {
+    globals: true,
+    environment: 'node'
+  },
+  plugins: [dts()]
 });
