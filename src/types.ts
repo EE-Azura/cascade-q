@@ -19,3 +19,7 @@ export interface ThresholdsItem {
   value: number;
   concurrency: number;
 }
+
+export type QueueEvent = 'enqueue' | 'start' | 'complete' | 'cancel';
+
+export type EventHandler = (task: TaskItem) => void;
