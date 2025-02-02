@@ -1,4 +1,8 @@
 /**
+ * @author EE_Azura <EE_Azura@outlook.com>
+ */
+
+/**
  * 任务状态常量对象，用于标识任务的不同运行状态
  */
 export const TaskStatus = {

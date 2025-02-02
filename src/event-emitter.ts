@@ -1,3 +1,7 @@
+/**
+ * @author EE_Azura <EE_Azura@outlook.com>
+ */
+
 import { TaskItem, QueueEvent, EventHandler } from './types';
 
 export class EventEmitter {

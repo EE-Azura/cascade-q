@@ -1,3 +1,7 @@
+/**
+ * @author EE_Azura <EE_Azura@outlook.com>
+ */
+
 type Comparator<T> = (a: T, b: T) => number;
 
 export class PriorityQueue<T> {

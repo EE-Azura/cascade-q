@@ -1,3 +1,7 @@
+/**
+ * @author EE_Azura <EE_Azura@outlook.com>
+ */
+
 import { CalcConcurrency, DecayCurve, ThresholdItem } from './types';
 
 /**

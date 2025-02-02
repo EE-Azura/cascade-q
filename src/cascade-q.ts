@@ -1,4 +1,8 @@
 /**
+ * @author EE_Azura <EE_Azura@outlook.com>
+ */
+
+/**
  * CascadeQ - 多优先级任务调度器
  *
  * 特性：
