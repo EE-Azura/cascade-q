@@ -52,14 +52,14 @@ queue.on('start', task => {
 
 #### 配置选项
 
-| 参数              | 类型                                      | 默认值       | 说明                     |
-| ----------------- | ----------------------------------------- | ------------ | ------------------------ |
-| `maxConcurrency`  | `number`                                  | `10`         | 全局最大并发任务数       |
-| `baseDecay`       | `number`                                  | `0.05`       | 每分钟优先级衰减基数     |
-| `decayCurve`      | `(minutes: number) => number`             | `m => m`     | 衰减曲线函数             |
-| `calcConcurrency` | `(index, { max, totalLevels }) => number` | [见默认策略] | 并发计算函数             |
-| `taskTTL`         | `number`                                  | `60000`      | 任务最长存活时间（毫秒） |
-| `thresholds`      | `Array<number \| ThresholdItem>`          | `[0, 10]`    | 优先级阈值配置           |
+| 参数              | 类型                                      | 默认值                       | 说明                     |
+| ----------------- | ----------------------------------------- | ---------------------------- | ------------------------ |
+| `maxConcurrency`  | `number`                                  | `10`                         | 全局最大并发任务数       |
+| `baseDecay`       | `number`                                  | `0.05`                       | 每分钟优先级衰减基数     |
+| `decayCurve`      | `(minutes: number) => number`             | `m => m`                     | 衰减曲线函数             |
+| `calcConcurrency` | `(index, { max, totalLevels }) => number` | 见[默认策略](src/default.ts) | 并发计算函数             |
+| `taskTTL`         | `number`                                  | `60000`                      | 任务最长存活时间（毫秒） |
+| `thresholds`      | `Array<number \| ThresholdItem>`          | `[0, 10]`                    | 优先级阈值配置           |
 
 #### 方法
 
