@@ -1,6 +1,6 @@
 # CascadeQ
 
-多优先级任务调度器，支持动态任务优先级衰减、并发任务数控制、超时任务清理以及事件驱动的任务状态通知。该库适用于 HTTP 请求、日志记录等场景。
+轻量级多优先级任务调度器，支持动态任务优先级衰减、并发任务数控制、超时任务清理以及事件驱动的任务状态通知。该库适用于 HTTP 请求、日志记录等场景。
 
 ## 特性
 
@@ -17,91 +17,140 @@
 npm install cascade-q
 ```
 
-## 快速上手
-
-下面是一个简单的使用示例：
+## 快速开始
 
 ```typescript
-import { CascadeQ } from 'cascade-q';
+import { CascadeQ } from 'cascadeq';
 
-const queue = new CascadeQ({ maxConcurrency: 5 });
+// 创建队列实例
+const queue = new CascadeQ({
+  maxConcurrency: 5,
+  thresholds: [0, 10] // 0: 高优先级, 10: 低优先级
+});
 
-// 添加任务，并设定基础优先级为 10
-const handle = queue.add(() => fetch('https://example.com/api/data'), 10);
+// 添加高优先级任务
+const task1 = queue.add(async () => {
+  await fetch('/api/data');
+}, 0);
+
+// 添加低优先级任务（自动延迟）
+queue.add(async () => {
+  await sendAnalytics();
+});
 
 // 监听任务事件
-queue.on('enqueue', task => console.log(`任务 [${task.id.toString()}] 被添加`));
-queue.on('start', task => console.log(`任务 [${task.id.toString()}] 开始执行`));
-queue.on('complete', task => console.log(`任务 [${task.id.toString()}] 执行完毕`));
-queue.on('cancel', task => console.log(`任务 [${task.id.toString()}] 已取消`));
-
-// 如有需要，可取消任务
-// handle.cancel();
+queue.on('start', task => {
+  console.log('Task started:', task.id);
+});
 ```
 
-## API 说明
+---
 
-### CascadeQ 类
+## API 文档
 
-| 方法                                                             | 参数说明                                                                                                        | 返回值        | 描述                                                                       |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------- |
-| constructor(options?: CascadeQOptions)                           | options: CascadeQ 配置选项，包含 maxConcurrency、baseDecay、decayCurve、calcConcurrency、taskTTL、thresholds 等 | CascadeQ 实例 | 初始化调度器实例。                                                         |
-| add(task: () => Promise<unknown>, priority?: number): TaskHandle | task: 返回 Promise 的异步函数<br>priority: 任务基础优先级（数值越小优先级越高）                                 | TaskHandle    | 添加任务到队列，并返回任务控制句柄（包含取消任务与状态查询方法）。         |
-| pause(): void                                                    | 无                                                                                                              | void          | 暂停任务调度，新任务不会被启动，但已在运行的任务不会中断。                 |
-| resume(): void                                                   | 无                                                                                                              | void          | 恢复任务调度，并尝试启动等待中的任务。                                     |
-| cancel(taskId: symbol): boolean                                  | taskId: 任务标识符                                                                                              | boolean       | 取消指定任务，返回任务是否成功取消。                                       |
-| clear(): void                                                    | 无                                                                                                              | void          | 清空所有待执行任务，并将其标记为取消。                                     |
-| getState(): object                                               | 无                                                                                                              | 状态对象      | 获取当前队列状态，包括运行中任务数、待执行任务总数及各优先级队列详细信息。 |
+### 核心类 `CascadeQ`
 
-### 事件
+#### 配置选项
 
-CascadeQ 继承自 EventEmitter，支持以下事件：
+| 参数              | 类型                                      | 默认值       | 说明                     |
+| ----------------- | ----------------------------------------- | ------------ | ------------------------ |
+| `maxConcurrency`  | `number`                                  | `10`         | 全局最大并发任务数       |
+| `baseDecay`       | `number`                                  | `0.05`       | 每分钟优先级衰减基数     |
+| `decayCurve`      | `(minutes: number) => number`             | `m => m`     | 衰减曲线函数             |
+| `calcConcurrency` | `(index, { max, totalLevels }) => number` | [见默认策略] | 并发计算函数             |
+| `taskTTL`         | `number`                                  | `60000`      | 任务最长存活时间（毫秒） |
+| `thresholds`      | `Array<number \| ThresholdItem>`          | `[0, 10]`    | 优先级阈值配置           |
 
-| 事件名称 | 描述                 | 参数          |
-| -------- | -------------------- | ------------- |
-| enqueue  | 任务被加入队列时触发 | TaskItem 对象 |
-| start    | 任务开始执行时触发   | TaskItem 对象 |
-| complete | 任务执行完成后触发   | TaskItem 对象 |
-| cancel   | 任务被取消时触发     | TaskItem 对象 |
+#### 方法
 
-## 其他模块
+| 方法       | 参数                                        | 返回值       | 说明         |
+| ---------- | ------------------------------------------- | ------------ | ------------ |
+| `add`      | `task: () => Promise<T>, priority?: number` | `TaskHandle` | 添加异步任务 |
+| `cancel`   | `taskId: symbol`                            | `boolean`    | 取消指定任务 |
+| `pause`    | -                                           | `void`       | 暂停任务调度 |
+| `resume`   | -                                           | `void`       | 恢复任务调度 |
+| `clear`    | -                                           | `void`       | 清空所有队列 |
+| `getState` | -                                           | `QueueState` | 获取队列状态 |
+| `dispose`  | -                                           | `void`       | 销毁队列实例 |
 
-### PriorityQueue
+#### 事件系统
 
-一个基于小顶堆实现的优先级队列，为 CascadeQ 提供任务排序保证。
+| 事件名     | 触发时机     | 回调参数   |
+| ---------- | ------------ | ---------- |
+| `enqueue`  | 任务入队时   | `TaskItem` |
+| `start`    | 任务开始执行 | `TaskItem` |
+| `complete` | 任务完成时   | `TaskItem` |
+| `cancel`   | 任务被取消   | `TaskItem` |
 
-#### 主要方法
+---
 
-| 方法    | 参数    | 返回值         | 描述                   |
-| ------- | ------- | -------------- | ---------------------- |
-| enqueue | item: T | void           | 入队新元素             |
-| dequeue | 无      | T \| undefined | 出队最高优先等级的元素 |
-| size    | 无      | number         | 返回当前队列大小       |
+### 类型定义
 
-### EventEmitter
+#### `ThresholdItem`
 
-基础事件机制，支持注册、注销与事件广播。
+| 属性          | 类型               | 说明             |
+| ------------- | ------------------ | ---------------- |
+| `level`       | `string \| symbol` | 层级标识         |
+| `value`       | `number`           | 优先级阈值       |
+| `concurrency` | `number`           | 本层级最大并发数 |
 
-| 方法               | 参数                                     | 返回值 | 描述                               |
-| ------------------ | ---------------------------------------- | ------ | ---------------------------------- |
-| on                 | event: QueueEvent, handler: EventHandler | void   | 注册指定事件的回调函数             |
-| off                | event: QueueEvent, handler: EventHandler | void   | 注销指定事件的回调函数             |
-| emit               | event: QueueEvent, task: TaskItem        | void   | 触发指定事件并通知所有回调         |
-| removeAllListeners | 无                                       | void   | 清除此事件系统所有已注册的回调函数 |
+#### `TaskHandle`
 
-## 默认配置
+| 属性/方法   | 类型               | 说明         |
+| ----------- | ------------------ | ------------ |
+| `id`        | `symbol`           | 任务唯一标识 |
+| `cancel`    | `() => boolean`    | 取消任务     |
+| `getStatus` | `() => TaskStatus` | 获取当前状态 |
 
-默认配置文件（default.ts）中定义了以下常量：
+#### `QueueState`
 
-- DEFAULT_MAX_CONCURRENCY：默认最大并发数（10）
-- DEFAULT_BASE_DECAY：默认基础优先级衰减（0.05）
-- DEFAULT_DECAY_CURVE：简单线性衰减函数
-- DEFAULT_TASK_TTL：任务生存时长（60秒）
-- DEFAULT_THRESHOLDS：任务优先级阈值配置，可用于支持两级优先级划分
+| 属性      | 类型                                     | 说明           |
+| --------- | ---------------------------------------- | -------------- |
+| `running` | `number`                                 | 运行中任务数   |
+| `pending` | `number`                                 | 等待中任务总数 |
+| `queues`  | `Array<{ level, concurrency, pending }>` | 各队列详情     |
+
+---
+
+## 高级配置示例
+
+### 自定义并发策略
+
+```typescript
+new CascadeQ({
+  calcConcurrency: (index, { max, totalLevels }) => {
+    // 指数衰减策略
+    return Math.floor(max * 0.5 ** index);
+  }
+});
+```
+
+### 非线性衰减曲线
+
+```typescript
+new CascadeQ({
+  baseDecay: 0.1,
+  decayCurve: m => Math.sqrt(m) // 平方根衰减
+});
+```
+
+### 复杂阈值配置
+
+```typescript
+new CascadeQ({
+  thresholds: [
+    { level: 'URGENT', value: -5, concurrency: 3 },
+    { level: 'HIGH', value: 0 },
+    10 // 简写形式自动转换
+  ]
+});
+```
+
+---
 
 ## 开源协议
 
-该项目采用 MIT 协议，详细见 LICENSE 文件。
+该项目采用 MIT 协议，详细见 [LICENSE](LICENSE) 。
 
 ## 联系方式
 

@@ -4,17 +4,6 @@
 
 /**
  * CascadeQ - 多优先级任务调度器
- *
- * 特性：
- *  - 动态任务优先级衰减
- *  - 并发任务数控制
- *  - 定时清理超时任务
- *  - 事件驱动的任务状态通知（enqueue、start、complete、cancel）
- *
- * 示例：
- *   const queue = new CascadeQ({ maxConcurrency: 5 });
- *   const handle = queue.add(() => fetch(someUrl), 10);
- *   handle.cancel(); // 取消任务
  */
 import { TaskItem, TaskStatus, ThresholdItem, CalcConcurrency, CascadeQOptions, TaskHandle, DecayCurve } from './types';
 import { EventEmitter } from './event-emitter';
