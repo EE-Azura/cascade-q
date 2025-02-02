@@ -31,10 +31,7 @@ export class PriorityQueue<T> {
     while (index > 0) {
       const parent = Math.floor((index - 1) / 2);
       if (this.#compare(this.#heap[index], this.#heap[parent]) >= 0) break;
-      [this.#heap[parent], this.#heap[index]] = [
-        this.#heap[index],
-        this.#heap[parent]
-      ];
+      [this.#heap[parent], this.#heap[index]] = [this.#heap[index], this.#heap[parent]];
       index = parent;
     }
   }
@@ -46,23 +43,14 @@ export class PriorityQueue<T> {
       const left = 2 * index + 1;
       const right = 2 * index + 2;
 
-      if (
-        left < length &&
-        this.#compare(this.#heap[left], this.#heap[smallest]) < 0
-      ) {
+      if (left < length && this.#compare(this.#heap[left], this.#heap[smallest]) < 0) {
         smallest = left;
       }
-      if (
-        right < length &&
-        this.#compare(this.#heap[right], this.#heap[smallest]) < 0
-      ) {
+      if (right < length && this.#compare(this.#heap[right], this.#heap[smallest]) < 0) {
         smallest = right;
       }
       if (smallest === index) break;
-      [this.#heap[index], this.#heap[smallest]] = [
-        this.#heap[smallest],
-        this.#heap[index]
-      ];
+      [this.#heap[index], this.#heap[smallest]] = [this.#heap[smallest], this.#heap[index]];
       index = smallest;
     }
   }
