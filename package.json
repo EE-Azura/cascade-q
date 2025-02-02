@@ -8,6 +8,7 @@
   "scripts": {
     "build": "vite build",
     "test": "npm run build && vitest run",
+    "test:compat": "npm run build && vitest run compat-tests",
     "lint": "eslint \"src/**/*.{ts, js}\"",
     "format": "prettier --write ."
   },
