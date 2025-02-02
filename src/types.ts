@@ -23,7 +23,7 @@ export interface ThresholdItem {
   concurrency: number;
 }
 
-export type calcConcurrency = (index: number, context: { max: number; totalLevels: number }) => number;
+export type CalcConcurrency = (index: number, context: { max: number; totalLevels: number }) => number;
 
 export interface CascadeQOptions {
   maxConcurrency?: number;
@@ -31,7 +31,7 @@ export interface CascadeQOptions {
   decayCurve?: (minutes: number) => number;
   thresholds?: Array<number | ThresholdItem>;
   taskTTL?: number;
-  calcConcurrency?: calcConcurrency;
+  calcConcurrency?: CalcConcurrency;
 }
 
 export interface TaskHandle {
@@ -40,7 +40,7 @@ export interface TaskHandle {
   getStatus: () => TaskStatus;
 }
 
-export type decayCurve = (minutes: number) => number;
+export type DecayCurve = (minutes: number) => number;
 
 export type QueueEvent = 'enqueue' | 'start' | 'complete' | 'cancel';
 
