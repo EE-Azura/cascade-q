@@ -10,7 +10,8 @@
     "test": "npm run build && vitest run",
     "test:compat": "npm run build && vitest run compat-tests",
     "lint": "eslint \"src/**/*.{ts, js}\"",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -34,6 +35,7 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.1",
     "globals": "^15.14.0",
+    "husky": "^9.1.7",
     "prettier": "^3.3.3",
     "typescript-eslint": "^8.22.0",
     "vite": "^6.0.11",
