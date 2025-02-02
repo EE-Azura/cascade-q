@@ -11,7 +11,13 @@ export class EventEmitter {
   }
 
   off(event: QueueEvent, handler: EventHandler): void {
-    this.handlers.get(event)?.delete(handler);
+    const eventHandlers = this.handlers.get(event);
+    if (eventHandlers) {
+      eventHandlers.delete(handler);
+      if (eventHandlers.size === 0) {
+        this.handlers.delete(event);
+      }
+    }
   }
 
   emit(event: QueueEvent, task: TaskItem): void {
