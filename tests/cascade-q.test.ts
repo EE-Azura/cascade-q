@@ -1,154 +1,245 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import { CascadeQ } from '../src/cascade-q';
+import { TaskStatus } from '../src/types';
 
-describe('CascadeQ 测试', () => {
+// 启用 fake timers
+beforeAll(() => {
+  vi.useFakeTimers();
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
+
+// 辅助函数：延迟指定毫秒
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+describe('CascadeQ 完整测试套件', () => {
   let queue: CascadeQ;
 
   beforeEach(() => {
-    // 这里初始化队列默认并发数，例如 10
-    queue = new CascadeQ({ maxConcurrency: 10 });
-  });
-
-  it('添加任务后任务应被执行并完成', async () => {
-    const taskMock = vi.fn(async () => {
-      await new Promise<void>(resolve => setTimeout(resolve, 50));
-    });
-
-    queue.add(taskMock, 5);
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    expect(taskMock).toHaveBeenCalled();
-    const state = queue.getState();
-    expect(state.pending).toBe(0);
-    expect(state.running).toBe(0);
-  });
-
-  it('取消任务后任务应被标记为取消', async () => {
-    const longTask = () => new Promise<void>(resolve => setTimeout(resolve, 1000));
-    const handle = queue.add(longTask, 5);
-
-    // 立即取消任务
-    handle.cancel();
-    await new Promise(resolve => setTimeout(resolve, 50));
-    const state = queue.getState();
-    // 如果任务在执行前取消，则 pending 数量应为0
-    expect(state.pending).toBe(0);
-  });
-
-  it('暂停和恢复应阻止和恢复任务调度', async () => {
-    const taskMock1 = vi.fn(async () => new Promise<void>(resolve => setTimeout(resolve, 200)));
-    const taskMock2 = vi.fn(async () => new Promise<void>(resolve => setTimeout(resolve, 200)));
-
-    // 暂停队列，确保添加后任务未立即执行
-    queue.pause();
-    queue.add(taskMock1, 5);
-    queue.add(taskMock2, 5);
-
-    await new Promise(resolve => setTimeout(resolve, 50));
-    const state = queue.getState();
-    expect(state.running).toBe(0);
-
-    // 恢复调度后，任务开始执行
-    queue.resume();
-    await new Promise(resolve => setTimeout(resolve, 300));
-    expect(taskMock1).toHaveBeenCalled();
-    expect(taskMock2).toHaveBeenCalled();
-  });
-
-  it('清空任务队列应将所有待执行任务取消', async () => {
-    const longTask = () => new Promise<void>(resolve => setTimeout(resolve, 1000));
-    queue.add(longTask, 5);
-    queue.add(longTask, 5);
-
-    queue.clear();
-    const state = queue.getState();
-    expect(state.pending).toBe(0);
-  });
-
-  it('事件触发应该符合预期', async () => {
-    const onEnqueue = vi.fn();
-    const onStart = vi.fn();
-    const onComplete = vi.fn();
-    const onCancel = vi.fn();
-
-    // 暂停队列调度，确保任务添加后不立即执行
-    queue.pause();
-
-    // 注册事件监听器
-    queue.on('enqueue', onEnqueue);
-    queue.on('start', onStart);
-    queue.on('complete', onComplete);
-    queue.on('cancel', onCancel);
-
-    // 添加一个正常任务
-    const taskNormal = vi.fn(async () => {
-      await new Promise<void>(resolve => setTimeout(resolve, 50));
-    });
-    queue.add(taskNormal, 1);
-
-    // 添加一个长任务后立即取消，用于验证取消事件
-    const longTask = () => new Promise<void>(resolve => setTimeout(resolve, 1000));
-    const handle = queue.add(longTask, 1);
-    handle.cancel();
-
-    // 恢复队列调度
-    queue.resume();
-    await new Promise(resolve => setTimeout(resolve, 150));
-
-    expect(onEnqueue).toHaveBeenCalledTimes(2);
-    // 正常任务启动后触发 start 和 complete，仅正常任务会真正执行
-    expect(onStart).toHaveBeenCalledTimes(1);
-    expect(onComplete).toHaveBeenCalledTimes(1);
-    expect(onCancel).toHaveBeenCalledTimes(1);
-  });
-
-  it('异常任务应触发 complete 事件并记录错误', async () => {
-    // 使用 pause 保证任务不会立即执行
-    queue.pause();
-    const onComplete = vi.fn();
-    queue.on('complete', onComplete);
-
-    // 使用 spy 捕获 console.error
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    // 添加一个会抛出异常的任务
-    const errorTask = async () => {
-      throw new Error('Test Error');
-    };
-    queue.add(errorTask, 1);
-
-    queue.resume();
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    expect(consoleSpy).toHaveBeenCalled();
-    expect(onComplete).toHaveBeenCalledTimes(1);
-
-    consoleSpy.mockRestore();
-  });
-
-  it('高并发调度任务数应不超过最大并发限制', async () => {
-    // 使用较低的并发数测试，设定为3
+    vi.useFakeTimers();
     queue = new CascadeQ({ maxConcurrency: 3 });
-    queue.pause();
+  });
 
-    const resolvers: Array<() => void> = [];
-    // 添加 5 个任务，这些任务不会自动结束，等待手动触发完成
-    for (let i = 0; i < 5; i++) {
-      queue.add(() => {
-        return new Promise<void>(resolve => {
-          resolvers.push(resolve);
+  afterEach(() => {
+    vi.useRealTimers();
+    queue.dispose();
+  });
+
+  // 基础功能测试
+  describe('核心功能', () => {
+    it('添加执行任务', async () => {
+      const task = vi.fn().mockResolvedValue(null);
+      queue.add(task, 0);
+
+      await vi.advanceTimersByTimeAsync(50);
+      expect(task).toHaveBeenCalled();
+    });
+
+    it('取消未执行任务', async () => {
+      queue.pause(); // 暂停任务调度，防止任务立即执行
+      const task = vi.fn();
+      const handle = queue.add(task, 0);
+
+      handle.cancel();
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(task).not.toHaveBeenCalled();
+      expect(handle.getStatus()).toBe(TaskStatus.Cancelled);
+      queue.resume(); // 恢复调度（如果需要后续测试继续执行）
+    });
+
+    it('暂停/恢复调度', async () => {
+      const task = vi.fn().mockResolvedValue(null);
+      queue.pause();
+      queue.add(task, 0);
+
+      await vi.advanceTimersByTimeAsync(100);
+      expect(task).not.toHaveBeenCalled();
+
+      queue.resume();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(task).toHaveBeenCalled();
+    });
+  });
+
+  // 优先级测试
+  describe('优先级调度', () => {
+    it('应按照有效优先级排序', async () => {
+      const execOrder: number[] = [];
+      queue = new CascadeQ({
+        thresholds: [0, 5],
+        maxConcurrency: 1
+      });
+
+      // 低优先级但早添加
+      queue.add(async () => {
+        execOrder.push(2);
+        await delay(50);
+      }, 5);
+
+      // 高优先级但晚添加
+      await delay(10);
+      queue.add(async () => {
+        execOrder.push(1);
+        await delay(50);
+      }, 0);
+
+      await vi.advanceTimersByTimeAsync(200);
+      expect(execOrder).toEqual([1, 2]);
+    });
+
+    it('时间衰减应提升优先级', async () => {
+      queue = new CascadeQ({
+        thresholds: [5, 10], // 队列0: 优先级≤5，队列1: 5<优先级≤10
+        baseDecay: 0.1 // 每分钟衰减0.1
+      });
+
+      // 初始优先级为6 → 进入队列1
+      const handle = queue.add(() => delay(50), 6);
+
+      // 验证初始状态
+      let state = queue.getState();
+      expect(state.queues[1].pending).toBe(1);
+      expect(handle.getStatus()).toBe(TaskStatus.Pending);
+
+      // 模拟等待6分钟（衰减0.6），有效优先级=6-0.6=5.4 → 应移至队列0
+      await vi.advanceTimersByTimeAsync(6 * 60 * 1000);
+
+      // 验证队列状态和任务状态
+      state = queue.getState();
+      expect(state.queues[0].pending).toBe(1); // 队列0有1个任务
+      expect(state.queues[1].pending).toBe(0); // 队列1无任务
+      expect(handle.getStatus()).toBe(TaskStatus.Pending);
+    });
+  });
+
+  // 并发控制测试
+  describe('并发控制', () => {
+    it('应遵守层级并发限制', async () => {
+      queue = new CascadeQ({
+        thresholds: [
+          { value: 0, concurrency: 1, level: 'high' },
+          { value: 5, concurrency: 2, level: 'low' }
+        ],
+        maxConcurrency: 3
+      });
+
+      // 添加任务
+      queue.add(() => delay(200), 0); // 高优先级
+      queue.add(() => delay(200), 0); // 应被阻塞
+      queue.add(() => delay(200), 5); // 中优先级
+      queue.add(() => delay(200), 5); // 中优先级
+      queue.add(() => delay(200), 10); // 低优先级
+
+      await vi.advanceTimersByTimeAsync(10);
+
+      const state = queue.getState();
+      expect(state.running).toBe(3); // 0级1个 + 5级2个
+      expect(state.queues[0].pending).toBe(1);
+    });
+
+    it('应动态调整并发策略', async () => {
+      queue = new CascadeQ({
+        calcConcurrency: i => (i === 0 ? 3 : 0)
+      });
+
+      // 添加任务
+      Array(5)
+        .fill(0)
+        .forEach(() => queue.add(() => delay(100), 0));
+      Array(5)
+        .fill(0)
+        .forEach(() => queue.add(() => delay(100), 5));
+
+      await vi.advanceTimersByTimeAsync(50);
+      expect(queue.getState().running).toBe(3);
+    });
+  });
+
+  // 生命周期测试
+  describe('生命周期管理', () => {
+    it('应清理过期任务', async () => {
+      queue = new CascadeQ({ taskTTL: 100 });
+      const onCancel = vi.fn();
+      queue.on('cancel', onCancel);
+
+      queue.add(() => new Promise(() => {})); // 永不完成
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(onCancel).toHaveBeenCalled();
+      expect(queue.getState().pending).toBe(0);
+    });
+
+    it('销毁后拒绝新任务', () => {
+      queue.dispose();
+      expect(() => queue.add(() => Promise.resolve())).toThrow(/disposed/);
+    });
+  });
+
+  // 事件系统测试
+  describe('事件系统', () => {
+    it('应触发完整事件序列', async () => {
+      const events: string[] = [];
+      const task = vi.fn().mockResolvedValue(null);
+
+      queue.on('enqueue', () => events.push('enqueue'));
+      queue.on('start', () => events.push('start'));
+      queue.on('complete', () => events.push('complete'));
+
+      queue.add(task, 0);
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(events).toEqual(['enqueue', 'start', 'complete']);
+    });
+
+    it('事件参数应完整', async () => {
+      const testTask = { id: Symbol('test'), priority: 0 };
+      queue.on('enqueue', task => {
+        expect(task).toMatchObject({
+          id: expect.any(Symbol),
+          basePriority: testTask.priority,
+          status: TaskStatus.Pending
         });
-      }, 1);
-    }
+      });
 
-    queue.resume();
-    await new Promise(resolve => setTimeout(resolve, 50));
-    const state = queue.getState();
-    // 正在运行的任务数不应超过 3
-    expect(state.running).toBeLessThanOrEqual(3);
+      queue.add(() => Promise.resolve(), testTask.priority);
+      await vi.advanceTimersByTimeAsync(10);
+    });
+  });
 
-    // 手动完成所有任务
-    resolvers.forEach(resolve => resolve());
-    await new Promise(resolve => setTimeout(resolve, 50));
+  // 边界情况测试
+  describe('边界情况', () => {
+    it('空队列状态', () => {
+      const state = queue.getState();
+      expect(state).toEqual({
+        running: 0,
+        pending: 0,
+        queues: expect.any(Array)
+      });
+    });
+
+    it('批量任务处理', async () => {
+      const taskCount = 1000;
+      const tasks = Array(taskCount).fill(() => Promise.resolve());
+
+      const start = performance.now();
+      tasks.forEach(fn => queue.add(fn));
+      const duration = performance.now() - start;
+
+      expect(duration).toBeLessThan(50); // 千级任务应在50ms内处理
+      expect(queue.getState().pending).toBe(taskCount - 3); // 3个立即执行
+    });
+
+    it('异常任务处理', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const error = new Error('test error');
+
+      queue.add(() => Promise.reject(error), 0);
+      await vi.advanceTimersByTimeAsync(50);
+
+      expect(errorSpy).toHaveBeenCalledWith('Task execution failed:', error);
+      errorSpy.mockRestore();
+    });
   });
 });
