@@ -21,10 +21,14 @@ export class CascadeQ extends EventEmitter {
   // 队列状态
   #thresholds: ThresholdItem[];
   #priorityQueues: PriorityQueue<TaskItem>[];
-  #runningTaskCount = 0;
+  #runningCounts: number[] = [];
   #isPaused = false;
   #isDisposed = false;
   #cleanupInterval?: number;
+
+  get #runningTaskCount(): number {
+    return this.#runningCounts.reduce((sum, count) => sum + count, 0);
+  }
 
   /**
    * 构造函数
@@ -50,6 +54,9 @@ export class CascadeQ extends EventEmitter {
             this.#calcEffectivePriority(a) - this.#calcEffectivePriority(b) || a.addedAt - b.addedAt
         )
     );
+
+    // 初始化层级计数器
+    this.#initRunningCount();
 
     // 启动定时清理，定期检查超时任务
     this.#startExpirationCheck();
@@ -137,7 +144,7 @@ export class CascadeQ extends EventEmitter {
         this.emit('cancel', task);
       }
     });
-    this.#runningTaskCount = 0;
+    this.#initRunningCount();
   }
 
   /**
@@ -151,6 +158,7 @@ export class CascadeQ extends EventEmitter {
       queues: this.#thresholds.map((t, i) => ({
         level: t.level,
         concurrency: t.concurrency,
+        running: this.#runningCounts[i],
         pending: this.#priorityQueues[i].size
       }))
     };
@@ -187,13 +195,29 @@ export class CascadeQ extends EventEmitter {
    * @returns 下一个待执行任务，若无则返回 undefined
    */
   #dequeueTask(): TaskItem | undefined {
-    for (const threshold of this.#thresholds) {
-      if (this.#runningTaskCount < threshold.concurrency) {
-        const index = this.#thresholds.indexOf(threshold);
-        const queue = this.#priorityQueues[index];
-        if (queue.size > 0) return queue.dequeue();
+    // 总剩余并发额度 = 全局最大并发 - 全局运行数
+
+    const remaining = this.#maxConcurrency - this.#runningTaskCount;
+
+    if (remaining <= 0) return undefined;
+
+    // 按优先级顺序遍历队列
+    for (let i = 0; i < this.#thresholds.length; i++) {
+      const { concurrency } = this.#thresholds[i];
+      const queue = this.#priorityQueues[i];
+      const runningCount = this.#runningCounts[i];
+
+      // 当前层级剩余额度 = 层级并发限制 - 已用额度
+      const levelRemaining = concurrency - runningCount;
+      const available = Math.min(remaining, levelRemaining);
+
+      if (available > 0 && queue.size > 0) {
+        console.groupEnd();
+        return queue.dequeue();
       }
     }
+
+    console.groupEnd();
     return undefined;
   }
 
@@ -202,8 +226,9 @@ export class CascadeQ extends EventEmitter {
    * @param taskItem 待执行的任务项
    */
   async #executeTask(taskItem: TaskItem): Promise<void> {
+    const queueIndex = this.#findTaskQueueIndex(taskItem);
+    this.#runningCounts[queueIndex]++;
     taskItem.status = TaskStatus.Running;
-    this.#runningTaskCount++;
     this.emit('start', taskItem);
     try {
       await taskItem.task();
@@ -211,13 +236,30 @@ export class CascadeQ extends EventEmitter {
     } catch (error) {
       console.error('Task execution failed:', error);
     } finally {
-      this.#runningTaskCount--;
+      this.#runningCounts[queueIndex]--;
       this.emit('complete', taskItem);
       this.#schedule();
     }
   }
 
   // ================== 辅助方法 ==================
+  /**
+   * 初始化运行计数器，用于记录各优先级队列中运行中的任务数
+   * @returns void
+   */
+  #initRunningCount() {
+    this.#runningCounts = new Array(this.#thresholds.length).fill(0);
+  }
+
+  /**
+   *  根据任务的有效优先级，查找任务应该对应的队列索引
+   * @param taskItem
+   * @returns number
+   */
+  #findTaskQueueIndex(taskItem: TaskItem): number {
+    const effectivePriority = this.#calcEffectivePriority(taskItem);
+    return this.#thresholds.findIndex(t => effectivePriority <= t.value) || this.#thresholds.length - 1;
+  }
 
   /**
    * 标准化阈值配置，确保所有阈值配置均为 ThresholdItem 对象，按 value 升序排序
