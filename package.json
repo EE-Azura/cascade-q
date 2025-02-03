@@ -13,6 +13,13 @@
     "format": "prettier --write .",
     "prepare": "husky"
   },
+  "lint-staged": {
+    "src/**/*.{ts,js}": [
+      "prettier --write",
+      "eslint --fix",
+      "git add"
+    ]
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/EE-Azura/cascade-q.git"
