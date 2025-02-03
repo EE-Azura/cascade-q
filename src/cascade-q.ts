@@ -23,6 +23,7 @@ export class CascadeQ extends EventEmitter {
   #priorityQueues: PriorityQueue<TaskItem>[];
   #runningTaskCount = 0;
   #isPaused = false;
+  #isDisposed = false;
   #cleanupInterval?: number;
 
   /**
@@ -63,6 +64,9 @@ export class CascadeQ extends EventEmitter {
    * @returns 返回任务控制句柄，用于任务取消
    */
   add(task: () => Promise<unknown>, priority?: number): TaskHandle {
+    if (this.#isDisposed) {
+      throw new Error('Queue has been disposed');
+    }
     const taskItem: TaskItem = {
       id: Symbol(),
       task,
@@ -296,6 +300,7 @@ export class CascadeQ extends EventEmitter {
    * 释放当前队列资源，清除定时器、移除所有事件监听器，并清空任务队列
    */
   dispose(): void {
+    this.#isDisposed = true;
     if (this.#cleanupInterval !== undefined) {
       clearInterval(this.#cleanupInterval);
       this.#cleanupInterval = undefined;
