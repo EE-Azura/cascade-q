@@ -27,13 +27,16 @@ export const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index, { max, totalLev
 export const DEFAULT_MAX_CONCURRENCY: number = 10;
 
 // 降低基础衰减，HTTP请求场景不需要快速衰减
-export const DEFAULT_BASE_DECAY: number = 0.05;
+export const DEFAULT_BASE_DECAY: number = 0.5;
 
 // 保持衰减曲线为线性变化
 export const DEFAULT_DECAY_CURVE: DecayCurve = m => m;
 
 // 任务生存时长（单位：毫秒）
-export const DEFAULT_TASK_TTL: number = 60_000; // 60秒
+export const DEFAULT_TASK_TTL: number = 600_000; // 600秒
 
 // 根据实际场景，仅需两级优先级：业务请求（高优先级）与日志请求（低优先级）
 export const DEFAULT_THRESHOLDS: Array<number | ThresholdItem> = [0, 10];
+
+// 优先级检查周期（单位：毫秒）
+export const PRIORITY_CHECK_CD = 10_000;

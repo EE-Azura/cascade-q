@@ -8,7 +8,7 @@
 import { TaskItem, TaskStatus, ThresholdItem, CalcConcurrency, CascadeQOptions, TaskHandle, DecayCurve } from './types';
 import { EventEmitter } from './event-emitter';
 import { PriorityQueue } from './priority-queue';
-import { DEFAULT_CALC_CONCURRENCY, DEFAULT_MAX_CONCURRENCY, DEFAULT_BASE_DECAY, DEFAULT_DECAY_CURVE, DEFAULT_TASK_TTL, DEFAULT_THRESHOLDS } from './default';
+import { DEFAULT_CALC_CONCURRENCY, DEFAULT_MAX_CONCURRENCY, DEFAULT_BASE_DECAY, DEFAULT_DECAY_CURVE, DEFAULT_TASK_TTL, DEFAULT_THRESHOLDS, PRIORITY_CHECK_CD } from './default';
 
 export class CascadeQ extends EventEmitter {
   // 配置选项（只读属性）
@@ -25,6 +25,8 @@ export class CascadeQ extends EventEmitter {
   #isPaused = false;
   #isDisposed = false;
   #cleanupInterval?: number;
+
+  #lastPriorityCheck: number = Date.now();
 
   get #runningTaskCount(): number {
     return this.#runningCounts.reduce((sum, count) => sum + count, 0);
@@ -183,6 +185,10 @@ export class CascadeQ extends EventEmitter {
    */
   #schedule(): void {
     if (this.#isPaused || this.#runningTaskCount >= this.#maxConcurrency) return;
+    if (Date.now() - this.#lastPriorityCheck > PRIORITY_CHECK_CD) {
+      this.#adjustPriorities();
+      this.#lastPriorityCheck = Date.now();
+    }
     while (this.#runningTaskCount < this.#maxConcurrency) {
       const task = this.#dequeueTask();
       if (!task) break;
@@ -240,6 +246,28 @@ export class CascadeQ extends EventEmitter {
       this.emit('complete', taskItem);
       this.#schedule();
     }
+  }
+
+  /**
+   * 调整任务优先级，将优先级提升的任务重新分配到更高优先级队列
+   */
+  #adjustPriorities() {
+    this.#priorityQueues.forEach((queue, index) => {
+      const threshold = this.#thresholds[index].value;
+      const temp: TaskItem[] = [];
+
+      while (queue.size > 0) {
+        const task = queue.dequeue()!;
+        if (this.#calcEffectivePriority(task) > threshold) {
+          temp.push(task); // 需要移出当前队列
+        } else {
+          queue.enqueue(task); // 保留
+        }
+      }
+
+      // 重新入队需要迁移的任务
+      temp.forEach(task => this.#enqueueTask(task));
+    });
   }
 
   // ================== 辅助方法 ==================
