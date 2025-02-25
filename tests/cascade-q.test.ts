@@ -46,7 +46,7 @@ describe('CascadeQ 完整测试套件', () => {
       const handle = queue.add(task, 0);
       await vi.advanceTimersByTimeAsync(100);
       expect(task).toHaveBeenCalled();
-      expect(handle.getStatus()).toBe(TaskStatus.Completed);
+      expect(handle.getStatus()).toBe(TaskStatus.Success);
     });
   });
 
@@ -159,13 +159,17 @@ describe('CascadeQ 完整测试套件', () => {
 
   // 生命周期管理测试
   describe('生命周期管理', () => {
-    it('应清理过期任务', async () => {
+    it('应清理超时未执行的任务', async () => {
       // 添加永远无法完成的任务，用于模拟超时
       const task = vi.fn(() => new Promise<void>(() => {}));
-      queue = new CascadeQ({ taskTTL: 100 }); // 设置 TTL 为100ms
+      queue = new CascadeQ({ taskTTL: 2000, cleanupCD: 1000 }); // 设置 TTL 为100ms
+      queue.pause(); // 暂停调度，确保任务不会被立即执行
+
       const handle = queue.add(task, 0);
+
       // 推进足够时间触发任务过期清理
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(3000);
+      console.log(handle.getStatus());
       expect(handle.getStatus()).toBe(TaskStatus.Cancelled);
     });
 
@@ -232,17 +236,25 @@ describe('CascadeQ 完整测试套件', () => {
   describe('异常任务处理', () => {
     it('应处理任务异常', async () => {
       const onComplete = vi.fn();
-      const onError = vi.fn();
+      const onFail = vi.fn();
       queue = new CascadeQ();
       queue.on('complete', onComplete);
-      queue.on('error', onError);
+      queue.on('fail', onFail); // 监听 fail 事件
+
       const failingTask = async () => {
         throw new Error('Test Error');
       };
+
       queue.add(failingTask, 0);
       await vi.advanceTimersByTimeAsync(100);
-      expect(onError).toHaveBeenCalled();
+
+      expect(onFail).toHaveBeenCalled();
       expect(onComplete).toHaveBeenCalled();
+
+      const errorTask = onFail.mock.calls[0][0];
+      expect(errorTask).toHaveProperty('id');
+      expect(errorTask).toHaveProperty('addedAt');
+      expect(errorTask).toHaveProperty('status', TaskStatus.Failed);
     });
   });
 });
