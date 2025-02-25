@@ -52,5 +52,8 @@ export const DEFAULT_TASK_TTL: number = 600_000; // 600秒
 // 根据实际场景，仅需两级优先级：业务请求（高优先级）与日志请求（低优先级）
 export const DEFAULT_THRESHOLDS: Array<number | ThresholdItem> = [0, 10];
 
+// 默认清理周期（单位：毫秒）
+export const DEFAULT_CLEANUP_CD = 60_000;
+
 // 优先级检查周期（单位：毫秒）
 export const PRIORITY_CHECK_CD = 10_000;

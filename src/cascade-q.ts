@@ -8,7 +8,16 @@
 import { CascadeQState, TaskItem, TaskStatus, ThresholdItem, CalcConcurrency, CascadeQOptions, TaskHandle, DecayCurve } from './types';
 import { EventEmitter } from './event-emitter';
 import { PriorityQueue } from './priority-queue';
-import { DEFAULT_CALC_CONCURRENCY, DEFAULT_MAX_CONCURRENCY, DEFAULT_BASE_DECAY, DEFAULT_DECAY_CURVE, DEFAULT_TASK_TTL, DEFAULT_THRESHOLDS, PRIORITY_CHECK_CD } from './default';
+import {
+  DEFAULT_CALC_CONCURRENCY,
+  DEFAULT_MAX_CONCURRENCY,
+  DEFAULT_BASE_DECAY,
+  DEFAULT_DECAY_CURVE,
+  DEFAULT_TASK_TTL,
+  DEFAULT_THRESHOLDS,
+  DEFAULT_CLEANUP_CD,
+  PRIORITY_CHECK_CD
+} from './default';
 
 export class CascadeQ extends EventEmitter {
   // 配置选项（只读属性）
@@ -17,6 +26,7 @@ export class CascadeQ extends EventEmitter {
   readonly #decayCurve: DecayCurve;
   readonly #calcConcurrency: CalcConcurrency;
   readonly #taskTTL: number;
+  readonly #cleanupCD: number;
 
   // 队列状态
   #thresholds: ThresholdItem[];
@@ -43,10 +53,11 @@ export class CascadeQ extends EventEmitter {
     this.#decayCurve = options.decayCurve ?? DEFAULT_DECAY_CURVE;
     this.#calcConcurrency = options.calcConcurrency ?? DEFAULT_CALC_CONCURRENCY;
     this.#taskTTL = options.taskTTL ?? DEFAULT_TASK_TTL; // 默认任务生存时长
+    this.#cleanupCD = options.cleanupCD ?? DEFAULT_CLEANUP_CD; // 默认清理周期
 
     // 初始化队列：
-    // 1. 标准化阈值配置（如未提供则使用默认阈值）
-    // 2. 根据阈值创建多个优先级队列，用于任务调度
+    // 1. 标准化阈值配置，确保所有阈值配置均为 ThresholdItem 对象，按 value 升序排序
+    // 2. 创建多个优先级队列，每个队列对应一个阈值
     this.#thresholds = this.#normalizeThresholds(options.thresholds ?? DEFAULT_THRESHOLDS);
     this.#priorityQueues = this.#thresholds.map(
       () =>
@@ -357,10 +368,7 @@ export class CascadeQ extends EventEmitter {
       });
     };
 
-    this.#cleanupInterval = setInterval(
-      checkExpiredTasks,
-      60_000 // 每分钟检查一次
-    ) as unknown as number; // 强制类型转换，确保跨环境兼容
+    this.#cleanupInterval = setInterval(checkExpiredTasks, this.#cleanupCD) as unknown as number;
   }
 
   /**
