@@ -55,25 +55,25 @@ describe('CascadeQ 完整测试套件', () => {
     it('应按照有效优先级排序', async () => {
       const execOrder: number[] = [];
       // 自定义 calcConcurrency 确保每个优先级队列至少有1个并发额度
-      const customCalcConcurrency = () => 1;
       queue = new CascadeQ({
         thresholds: [0, 5],
-        maxConcurrency: 2,
-        calcConcurrency: customCalcConcurrency
+        maxConcurrency: 1
       });
 
-      // 先添加低优先级任务（basePriority 为5，对应后面的队列）
+      queue.pause(); // 暂停调度
+
+      // 先添加低优先级任务（basePriority 为 5，对应后面的队列）
       queue.add(async () => {
         execOrder.push(2);
         await delay(50);
       }, 5);
 
-      // 延时后添加高优先级任务（basePriority 为0，对应前面的队列）
-      await delay(10);
       queue.add(async () => {
         execOrder.push(1);
         await delay(50);
       }, 0);
+
+      queue.resume(); // 恢复调度
 
       // 推进时间使所有任务启动并执行完毕
       await vi.advanceTimersByTimeAsync(200);
@@ -140,6 +140,7 @@ describe('CascadeQ 完整测试套件', () => {
     it('应动态调整并发策略', async () => {
       // 此处设定只有队列0具有并发额度（3个），队列1不允许并发
       queue = new CascadeQ({
+        thresholds: [0, 5],
         calcConcurrency: (i: number) => (i === 0 ? 3 : 0)
       });
       // 分别添加5个任务到两个队列：basePriority 0进入队列0，5进入队列1
@@ -151,6 +152,8 @@ describe('CascadeQ 完整测试套件', () => {
       }
       await vi.advanceTimersByTimeAsync(50);
       expect(queue.getState().running).toBe(3);
+      expect(queue.getState().queues[0].pending).toBe(2);
+      expect(queue.getState().queues[1].pending).toBe(5);
     });
   });
 
