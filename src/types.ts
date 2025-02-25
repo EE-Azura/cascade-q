@@ -20,7 +20,8 @@ export type CascadeQState = {
 export const TaskStatus = {
   Pending: 'pending',
   Running: 'running',
-  Completed: 'completed',
+  Success: 'success',
+  Failed: 'failed',
   Cancelled: 'cancelled'
 } as const;
 
@@ -90,7 +91,7 @@ export type DecayCurve = (minutes: number) => number;
 /**
  * 任务事件类型，用于标识任务队列的不同事件
  */
-export type QueueEvent = 'enqueue' | 'start' | 'complete' | 'cancel';
+export type QueueEvent = 'enqueue' | 'start' | 'success' | 'fail' | 'complete' | 'cancel';
 
 /**
  * 事件处理器类型，用于处理任务队列的不同事件
