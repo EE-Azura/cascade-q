@@ -56,4 +56,4 @@ export const DEFAULT_THRESHOLDS: Array<number | ThresholdItem> = [0, 10];
 export const DEFAULT_CLEANUP_CD = 60_000;
 
 // 优先级检查周期（单位：毫秒）
-export const PRIORITY_CHECK_CD = 10_000;
+export const DEFAULT_PRIORITY_CHECK_CD = 10_000;

@@ -72,6 +72,7 @@ export interface CascadeQOptions {
   taskTTL?: number;
   thresholds?: Array<number | ThresholdItem>;
   cleanupCD?: number;
+  priorityCheckCD?: number;
 }
 
 /**

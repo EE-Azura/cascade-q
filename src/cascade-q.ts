@@ -16,7 +16,7 @@ import {
   DEFAULT_TASK_TTL,
   DEFAULT_THRESHOLDS,
   DEFAULT_CLEANUP_CD,
-  PRIORITY_CHECK_CD
+  DEFAULT_PRIORITY_CHECK_CD
 } from './default';
 
 export class CascadeQ extends EventEmitter {
@@ -27,6 +27,7 @@ export class CascadeQ extends EventEmitter {
   readonly #calcConcurrency: CalcConcurrency;
   readonly #taskTTL: number;
   readonly #cleanupCD: number;
+  readonly #priorityCheckCD: number;
 
   // 队列状态
   #thresholds: ThresholdItem[];
@@ -54,6 +55,7 @@ export class CascadeQ extends EventEmitter {
     this.#calcConcurrency = options.calcConcurrency ?? DEFAULT_CALC_CONCURRENCY;
     this.#taskTTL = options.taskTTL ?? DEFAULT_TASK_TTL; // 默认任务生存时长
     this.#cleanupCD = options.cleanupCD ?? DEFAULT_CLEANUP_CD; // 默认清理周期
+    this.#priorityCheckCD = options.priorityCheckCD ?? DEFAULT_PRIORITY_CHECK_CD; // 默认优先级检查周期
 
     // 初始化队列：
     // 1. 标准化阈值配置，确保所有阈值配置均为 ThresholdItem 对象，按 value 升序排序
@@ -197,7 +199,7 @@ export class CascadeQ extends EventEmitter {
    */
   #schedule(): void {
     if (this.#isPaused || this.#runningTaskCount >= this.#maxConcurrency) return;
-    if (Date.now() - this.#lastPriorityCheck > PRIORITY_CHECK_CD) {
+    if (Date.now() - this.#lastPriorityCheck > this.#priorityCheckCD) {
       this.#adjustPriorities();
       this.#lastPriorityCheck = Date.now();
     }
