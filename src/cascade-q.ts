@@ -286,7 +286,8 @@ export class CascadeQ extends EventEmitter {
    */
   #findTaskQueueIndex(taskItem: TaskItem): number {
     const effectivePriority = this.#calcEffectivePriority(taskItem);
-    return this.#thresholds.findIndex(t => effectivePriority <= t.value) || this.#thresholds.length - 1;
+    const index = this.#thresholds.findIndex(t => effectivePriority <= t.value);
+    return index < 0 ? this.#thresholds.length - 1 : index;
   }
 
   /**
