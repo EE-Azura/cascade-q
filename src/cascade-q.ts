@@ -5,7 +5,7 @@
 /**
  * CascadeQ - 多优先级任务调度器
  */
-import { TaskItem, TaskStatus, ThresholdItem, CalcConcurrency, CascadeQOptions, TaskHandle, DecayCurve } from './types';
+import { CascadeQState, TaskItem, TaskStatus, ThresholdItem, CalcConcurrency, CascadeQOptions, TaskHandle, DecayCurve } from './types';
 import { EventEmitter } from './event-emitter';
 import { PriorityQueue } from './priority-queue';
 import { DEFAULT_CALC_CONCURRENCY, DEFAULT_MAX_CONCURRENCY, DEFAULT_BASE_DECAY, DEFAULT_DECAY_CURVE, DEFAULT_TASK_TTL, DEFAULT_THRESHOLDS, PRIORITY_CHECK_CD } from './default';
@@ -70,7 +70,7 @@ export class CascadeQ extends EventEmitter {
    * 添加异步任务到队列
    * @param task 返回 Promise 的异步函数
    * @param priority 基础优先级（数值越小优先级越高），可选，默认由系统分配
-   * @returns 返回任务控制句柄，用于任务取消
+   * @returns {TaskHandle} 返回任务控制句柄，用于任务取消
    */
   add(task: () => Promise<unknown>, priority?: number): TaskHandle {
     if (this.#isDisposed) {
@@ -151,19 +151,20 @@ export class CascadeQ extends EventEmitter {
 
   /**
    * 获取当前队列状态
-   * @returns 包含运行中任务数、待执行任务总数及各队列详细信息
+   * @returns {CascadeQState} 对象，包含当前队列的运行状态
    */
-  getState() {
+  getState(needConcurrency = true): CascadeQState {
     return {
       running: this.#runningTaskCount,
       pending: this.#priorityQueues.reduce((sum, q) => sum + q.size, 0),
+      max: this.#maxConcurrency,
       queues: this.#thresholds.map((t, i) => ({
         level: t.level,
-        concurrency: t.concurrency,
+        ...(needConcurrency ? { concurrency: t.getConcurrency() } : {}),
         running: this.#runningCounts[i],
         pending: this.#priorityQueues[i].size
       }))
-    };
+    } as CascadeQState;
   }
 
   // ================== 核心逻辑 ==================
@@ -209,7 +210,8 @@ export class CascadeQ extends EventEmitter {
 
     // 按优先级顺序遍历队列
     for (let i = 0; i < this.#thresholds.length; i++) {
-      const { concurrency } = this.#thresholds[i];
+      const { getConcurrency } = this.#thresholds[i];
+      const concurrency = getConcurrency();
       const queue = this.#priorityQueues[i];
       const runningCount = this.#runningCounts[i];
 
@@ -218,12 +220,10 @@ export class CascadeQ extends EventEmitter {
       const available = Math.min(remaining, levelRemaining);
 
       if (available > 0 && queue.size > 0) {
-        console.groupEnd();
         return queue.dequeue();
       }
     }
 
-    console.groupEnd();
     return undefined;
   }
 
@@ -296,14 +296,10 @@ export class CascadeQ extends EventEmitter {
    * @returns 标准化后的 ThresholdItem 数组
    */
   #normalizeThresholds(input: Array<number | ThresholdItem>): ThresholdItem[] {
-    const items = input.map(item => (typeof item === 'number' ? { value: item, level: Symbol.for(`Level_${item}`), concurrency: 1 } : item)).sort((a, b) => a.value - b.value);
-    const totalLevels = items.length;
+    const items = input.map(item => (typeof item === 'number' ? { value: item, level: Symbol.for(`Level_${item}`) } : item)).sort((a, b) => a.value - b.value);
     return items.map((item, index) => ({
       ...item,
-      concurrency: this.#calcConcurrency(index, {
-        max: this.#maxConcurrency,
-        totalLevels
-      })
+      getConcurrency: () => this.#calcConcurrency(index, this.getState(false))
     }));
   }
 

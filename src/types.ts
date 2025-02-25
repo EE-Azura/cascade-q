@@ -2,6 +2,18 @@
  * @author EE_Azura <EE_Azura@outlook.com>
  */
 
+export type CascadeQState = {
+  running: number;
+  pending: number;
+  max: number;
+  queues: {
+    level: number | string;
+    concurrency?: number;
+    running: number;
+    pending: number;
+  }[];
+};
+
 /**
  * 任务状态常量对象，用于标识任务的不同运行状态
  */
@@ -40,13 +52,13 @@ export type ThresholdLevel = string | symbol;
 export interface ThresholdItem {
   level: ThresholdLevel;
   value: number;
-  concurrency: number;
+  getConcurrency: () => number;
 }
 
 /**
  * 计算并发数函数类型，根据当前优先级所在索引和配置计算可以分配的并发数
  */
-export type CalcConcurrency = (index: number, context: { max: number; totalLevels: number }) => number;
+export type CalcConcurrency = (index: number, state: CascadeQState) => number;
 
 /**
  * CascadeQ 配置选项

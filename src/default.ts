@@ -2,25 +2,39 @@
  * @author EE_Azura <EE_Azura@outlook.com>
  */
 
-import { CalcConcurrency, DecayCurve, ThresholdItem } from './types';
+import { CalcConcurrency, DecayCurve, ThresholdItem, CascadeQState } from './types';
 
 /**
  * 默认计算并发数函数。
- *
- * 当仅有两个优先级时，分配 80% 的并发数给高优先级任务，余下 20% 给低优先级任务；
- * 否则采用线性分配方案，根据各个优先级对应的位置计算分配比例。
+ * 优先分配给有任务的队列：只有当队列中有等待任务时，才分配并发数
+ * 按优先级分配：优先级高的队列优先分配更多的并发数
+ * 动态调整：根据实际的任务数量和最大并发数动态调整分配，最小单位为1
  *
  * @param {number} index 当前级别的索引，从0开始，索引越小优先级越高
- * @param {{ max: number, totalLevels: number }} options 配置对象
- * @param {number} options.max 最大并发数
- * @param {number} options.totalLevels 所有优先级的总数
+ * @param {object} state 当前状态
+ * @param {number} state.max 最大并发数
+ * @param {number} state.running 当前运行中的任务数
+ * @param {number} state.pending 当前等待中的任务数
+ * @param {Array<ThresholdItem>} state.queues 队列状态
+ * @param {number} state.queues.level 队列级别
+ * @param {number} state.queues.running 队列运行中的任务数
+ * @param {number} state.queues.pending 队列等待中的任务数
  * @returns {number} 当前级别可以分配的并发数
  */
-export const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index, { max, totalLevels }) => {
-  if (totalLevels === 2) {
-    return index === 0 ? Math.floor(max * 0.8) : max - Math.floor(max * 0.8);
+export const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index, { max, pending, queues }: CascadeQState) => {
+  const totalLevels = queues.length;
+  const pendingTasks = queues.map(queue => queue.pending);
+  const totalPending = pending; // 总等待任务数
+
+  if (totalPending === 0) {
+    return 0; // 没有等待任务时，不分配并发数
   }
-  return Math.floor((max * (totalLevels - index)) / totalLevels);
+
+  const levelPending = pendingTasks[index];
+  const levelWeight = (totalLevels - index) / totalLevels;
+  const levelShare = Math.floor((max * levelWeight * levelPending) / totalPending);
+
+  return Math.max(Math.min(levelShare, levelPending), 1); // 分配的并发数不能超过等待任务数, 且至少为1
 };
 
 // 默认最大并发数
