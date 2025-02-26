@@ -1,157 +1,231 @@
-# CascadeQ
+# **CascadeQ**
 
-轻量级多优先级任务调度器，支持动态任务优先级衰减、并发任务数控制、超时任务清理以及事件驱动的任务状态通知。该库适用于 HTTP 请求、日志记录等场景。
+CascadeQ 是一个多优先级异步任务调度器，专为需要精细任务优先级控制和并发管理的 JavaScript/TypeScript 应用设计。
 
-## 特性
+## **特性**
 
-- **动态优先级衰减**：任务优先级会随着时间衰减，实现更合理的任务分配。
-- **并发控制**：支持全局及各优先级的并发数控制，提供线性或自定义分配策略。
-- **任务超时清理**：定时清理超时任务，保证队列健康状态。
-- **事件通知**：任务添加、启动、完成、取消等状态均能触发事件通知，方便监听管理。
+- **多级优先级队列** - 根据阈值自动分配任务到不同优先级队列
+- **优先级衰减机制** - 任务优先级会随时间自动提升，避免低优先级任务无限期等待
+- **灵活并发控制** - 全局并发限制和队列级别并发配置
+- **事件系统** - 完整的任务生命周期事件
+- **任务管理** - 支持任务取消、暂停/恢复和超时清理
+- **强类型支持** - 完整的 TypeScript 类型定义
 
-## 安装
-
-使用 npm 安装该库：
+## **安装**
 
 ```bash
 npm install cascade-q
 ```
 
-## 快速开始
+## **基本用法**
 
-```typescript
-import { CascadeQ } from 'cascadeq';
+```tsx
+import { CascadeQ } from 'cascade-q';
+import type { TaskHandle } from 'cascade-q/types';
 
-// 创建队列实例
+// 创建一个多优先级队列实例
 const queue = new CascadeQ({
-  maxConcurrency: 5,
-  thresholds: [0, 10] // 0: 高优先级, 10: 低优先级
+  thresholds: [0, 10], // 两个优先级级别：高(<=0)和低(<=10)
+  maxConcurrency: 3 // 最大同时运行3个任务
 });
 
 // 添加高优先级任务
-const task1 = queue.add(async () => {
-  await fetch('/api/data');
-}, 0);
+queue.add(async (): Promise<unknown> => {
+  const response = await fetch('/api/important-data');
+  return response.json();
+}, 0); // 优先级0（高）
 
-// 添加低优先级任务（自动延迟）
-queue.add(async () => {
-  await sendAnalytics();
+// 添加低优先级任务并获取类型化的句柄
+const handle: TaskHandle = queue.add(async (): Promise<unknown> => {
+  const response = await fetch('/api/less-important-data');
+  return response.json();
+}, 5); // 优先级5（低）
+
+// 取消特定任务
+handle.cancel();
+```
+
+## **配置选项**
+
+| 选项                    | 类型                           | 默认值                        | 描述                     |
+| ----------------------- | ------------------------------ | ----------------------------- | ------------------------ |
+| `maxConcurrency`        | `number`                       | `10`                          | 最大并发任务数           |
+| `thresholds`            | `Array<number\|ThresholdItem>` | `[0, 10]`                     | 优先级队列的阈值配置     |
+| `baseDecay`             | `number`                       | `0.5`                         | 基础优先级衰减率         |
+| `decayCurve`            | `DecayCurve`                   | `n => n`                      | 优先级衰减曲线函数       |
+| `priorityDecayInterval` | `number`                       | `60000`                       | 优先级衰减计算间隔(毫秒) |
+| `calcConcurrency`       | `CalcConcurrency`              | [默认并发策略](#默认并发策略) | 队列并发额度分配算法     |
+| `taskTTL`               | `number`                       | `120000`                      | 任务最大生存时间(毫秒)   |
+| `cleanupInterval`       | `number`                       | `60000`                       | 过期任务清理间隔(毫秒)   |
+| `priorityCheckInterval` | `number`                       | `10000`                       | 优先级检查间隔(毫秒)     |
+
+## **API 参考**
+
+### **队列操作方法**
+
+| 方法       | 参数                                              | 返回值          | 描述                                               |
+| ---------- | ------------------------------------------------- | --------------- | -------------------------------------------------- |
+| `add`      | `task: () => Promise<unknown>, priority?: number` | `TaskHandle`    | 添加异步任务到队列，返回任务控制句柄               |
+| `pause`    | 无                                                | `void`          | 暂停队列调度，已执行的任务继续运行，新任务不会启动 |
+| `resume`   | 无                                                | `void`          | 恢复队列调度                                       |
+| `cancel`   | `taskId: symbol`                                  | `boolean`       | 取消特定任务，成功返回 true                        |
+| `clear`    | 无                                                | `void`          | 清空所有待执行任务                                 |
+| `getState` | 无                                                | `CascadeQState` | 获取队列当前状态信息                               |
+| `dispose`  | 无                                                | `void`          | 释放队列资源，清理定时器，队列不再可用             |
+
+### **事件监听方法**
+
+| 方法  | 参数                                       | 返回值 | 描述           |
+| ----- | ------------------------------------------ | ------ | -------------- |
+| `on`  | `event: QueueEvent, handler: EventHandler` | `void` | 添加事件监听器 |
+| `off` | `event: QueueEvent, handler: EventHandler` | `void` | 移除事件监听器 |
+
+### **TaskHandle 方法**
+
+| 方法        | 参数                        | 返回值             | 描述                                  |
+| ----------- | --------------------------- | ------------------ | ------------------------------------- |
+| `cancel`    | 无                          | `boolean`          | 取消任务，成功返回 true               |
+| `getStatus` | 无                          | `TaskStatus`       | 获取当前任务状态                      |
+| `then`      | `onfulfilled?, onrejected?` | `Promise<unknown>` | Promise接口，支持等待任务完成         |
+| `catch`     | `onrejected`                | `Promise<unknown>` | Promise接口，捕获任务错误             |
+| `finally`   | `onfinally`                 | `Promise<unknown>` | Promise接口，无论任务成功或失败都执行 |
+
+## `QueueEvent`
+
+| 事件名称   | 回调参数          | 触发时机                   |
+| ---------- | ----------------- | -------------------------- |
+| `enqueue`  | `TaskItem`        | 任务被添加到队列时         |
+| `start`    | `TaskItem`        | 任务开始执行时             |
+| `success`  | `TaskItem`        | 任务成功完成时             |
+| `fail`     | `TaskItem, Error` | 任务执行失败时             |
+| `complete` | `TaskItem`        | 任务完成时(无论成功或失败) |
+| `cancel`   | `TaskItem`        | 任务被取消时               |
+
+## **核心概念**
+
+### **优先级阈值**
+
+优先级阈值定义了任务根据优先级值被分配到哪个队列：
+
+```tsx
+// 示例：三级优先级队列
+const queue = new CascadeQ({
+  thresholds: [0, 10, 20]
 });
 
-// 监听任务事件
-queue.on('start', task => {
-  console.log('Task started:', task.id);
+// 优先级 <= 0 的任务进入第一个队列（最高优先级）
+// 优先级 <= 10 的任务进入第二个队列
+// 优先级 <= 20 的任务进入第三个队列
+```
+
+### **优先级衰减**
+
+任务优先级会随时间自动提升（数值降低）：
+
+```tsx
+import { CascadeQ } from 'cascade-q';
+import type { DecayCurve } from 'cascade-q/types';
+
+// 配置任务优先级如何随时间衰减
+const queue = new CascadeQ({
+  baseDecay: 0.5, // 每单位时间优先级提升0.5
+  decayCurve: (n: number): number => n, // 线性衰减
+  priorityDecayInterval: 60000 // 每分钟计算一次衰减
+});
+
+// 指数衰减（优先级提升加速）示例
+const exponentialDecay: DecayCurve = (n: number): number => Math.pow(n, 2);
+const queue2 = new CascadeQ({
+  decayCurve: exponentialDecay
 });
 ```
 
----
+### **并发控制**
 
-## API 文档
+CascadeQ 提供两级并发控制：
 
-### 核心类 `CascadeQ`
+```tsx
+import { CascadeQ } from 'cascade-q';
+import type { CalcConcurrency, CascadeQState } from 'cascade-q/types';
 
-#### 配置选项
+// 自定义并发分配策略
 
-| 参数              | 类型                                      | 默认值                       | 说明                     |
-| ----------------- | ----------------------------------------- | ---------------------------- | ------------------------ |
-| `maxConcurrency`  | `number`                                  | `10`                         | 全局最大并发任务数       |
-| `baseDecay`       | `number`                                  | `0.05`                       | 每分钟优先级衰减基数     |
-| `decayCurve`      | `(minutes: number) => number`             | `m => m`                     | 衰减曲线函数             |
-| `calcConcurrency` | `(index, { max, totalLevels }) => number` | 见[默认策略](src/default.ts) | 并发计算函数             |
-| `taskTTL`         | `number`                                  | `60000`                      | 任务最长存活时间（毫秒） |
-| `thresholds`      | `Array<number \| ThresholdItem>`          | `[0, 10]`                    | 优先级阈值配置           |
+const customConcurrencyStrategy: CalcConcurrency = (index: number, state: CascadeQState): number => {
+  // 无待处理任务时返回0
+  if (state.queues[index].pending === 0) return 0;
+  // 高优先级队列(index=0)获得更多并发额度
+  if (index === 0) return Math.min(8, state.queues[0].pending);
+  // 低优先级队列每个最多2个并发
+  return Math.min(2, state.queues[index].pending);
+};
 
-#### 方法
+const queue = new CascadeQ({
+  maxConcurrency: 10, // 全局最大并发数
+  calcConcurrency: customConcurrencyStrategy
+});
+```
 
-| 方法       | 参数                                        | 返回值       | 说明         |
-| ---------- | ------------------------------------------- | ------------ | ------------ |
-| `add`      | `task: () => Promise<T>, priority?: number` | `TaskHandle` | 添加异步任务 |
-| `cancel`   | `taskId: symbol`                            | `boolean`    | 取消指定任务 |
-| `pause`    | -                                           | `void`       | 暂停任务调度 |
-| `resume`   | -                                           | `void`       | 恢复任务调度 |
-| `clear`    | -                                           | `void`       | 清空所有队列 |
-| `getState` | -                                           | `QueueState` | 获取队列状态 |
-| `dispose`  | -                                           | `void`       | 销毁队列实例 |
+### 默认并发策略
 
-#### 事件系统
+CascadeQ 的默认并发分配策略采用"加权比例分配"原则，通过队列优先级和任务数量动态调整并发资源，确保系统资源高效利用：
 
-| 事件名     | 触发时机     | 回调参数   |
-| ---------- | ------------ | ---------- |
-| `enqueue`  | 任务入队时   | `TaskItem` |
-| `start`    | 任务开始执行 | `TaskItem` |
-| `complete` | 任务完成时   | `TaskItem` |
-| `cancel`   | 任务被取消   | `TaskItem` |
+```tsx
+// 默认并发计算策略
+const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index, { max, pending, queues }: CascadeQState) => {
+  const totalLevels = queues.length;
+  const pendingTasks = queues.map(queue => queue.pending);
+  const totalPending = pending; // 总等待任务数
 
----
-
-### 类型定义
-
-#### `ThresholdItem`
-
-| 属性          | 类型               | 说明             |
-| ------------- | ------------------ | ---------------- |
-| `level`       | `string \| symbol` | 层级标识         |
-| `value`       | `number`           | 优先级阈值       |
-| `concurrency` | `number`           | 本层级最大并发数 |
-
-#### `TaskHandle`
-
-| 属性/方法   | 类型               | 说明         |
-| ----------- | ------------------ | ------------ |
-| `id`        | `symbol`           | 任务唯一标识 |
-| `cancel`    | `() => boolean`    | 取消任务     |
-| `getStatus` | `() => TaskStatus` | 获取当前状态 |
-
-#### `QueueState`
-
-| 属性      | 类型                                     | 说明           |
-| --------- | ---------------------------------------- | -------------- |
-| `running` | `number`                                 | 运行中任务数   |
-| `pending` | `number`                                 | 等待中任务总数 |
-| `queues`  | `Array<{ level, concurrency, pending }>` | 各队列详情     |
-
----
-
-## 高级配置示例
-
-### 自定义并发策略
-
-```typescript
-new CascadeQ({
-  calcConcurrency: (index, { max, totalLevels }) => {
-    // 指数衰减策略
-    return Math.floor(max * 0.5 ** index);
+  if (totalPending === 0) {
+    return 0; // 没有等待任务时，不分配并发数
   }
-});
+
+  const levelPending = pendingTasks[index];
+  const levelWeight = (totalLevels - index) / totalLevels;
+  const levelShare = Math.floor((max * levelWeight * levelPending) / totalPending);
+
+  return Math.max(Math.min(levelShare, levelPending), 1); // 分配的并发数不能超过等待任务数, 且至少为1
+};
 ```
 
-### 非线性衰减曲线
+### **策略特点**
 
-```typescript
-new CascadeQ({
-  baseDecay: 0.1,
-  decayCurve: m => Math.sqrt(m) // 平方根衰减
-});
-```
+- **优先级加权** - 优先级越高的队列获得更高权重，如三级队列中最高优先级队列权重为100%，中等优先级队列权重为66.7%，低优先级队列权重为33.3%
+- **按需分配** - 考虑各队列任务数量，根据任务分布按比例分配并发资源
+- **最低保障** - 确保每个有任务的队列至少分配一个并发额度，避免低优先级任务完全饿死
+- **动态调整** - 随着任务执行和添加，自动重新计算最优并发分配
+- **公平共享** - 充分利用可用并发资源，不会出现并发资源闲置而任务等待的情况
 
-### 复杂阈值配置
+## **状态定义**
 
-```typescript
-new CascadeQ({
-  thresholds: [
-    { level: 'URGENT', value: -5, concurrency: 3 },
-    { level: 'HIGH', value: 0 },
-    10 // 简写形式自动转换
-  ]
-});
-```
+### **`TaskStatus`**
 
----
+| 状态        | 描述             |
+| ----------- | ---------------- |
+| `Pending`   | 任务在队列中等待 |
+| `Running`   | 任务正在执行中   |
+| `Success`   | 任务已成功完成   |
+| `Failed`    | 任务执行失败     |
+| `Cancelled` | 任务已被取消     |
 
-## 开源协议
+### **`CascadeQState`**
 
-该项目采用 MIT 协议，详细见 [LICENSE](LICENSE) 。
+| 属性      | 类型     | 描述                   |
+| --------- | -------- | ---------------------- |
+| `running` | `number` | 当前正在执行的任务总数 |
+| `pending` | `number` | 当前等待执行的任务总数 |
+| `max`     | `number` | 最大并发任务数         |
+| `queues`  | `array`  | 各优先级队列的详细状态 |
 
-## 联系方式
+### `state.queues[index]`
 
-如有问题或建议，请在 GitHub 项目的 issues 区提交反馈，项目地址：[CascadeQ Issues](https://github.com/ee-azura/cascade-q/issues)。
+| 属性          | 类型             | 描述                     |
+| ------------- | ---------------- | ------------------------ |
+| `level`       | `number\|string` | 队列的优先级阈值或标识符 |
+| `concurrency` | `number`         | 该队列当前的并发额度     |
+| `running`     | `number`         | 该队列中正在执行的任务数 |
+| `pending`     | `number`         | 该队列中等待执行的任务数 |
+
+## **许可证**
+
+[MIT](./LICENSE)
