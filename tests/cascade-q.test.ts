@@ -52,6 +52,18 @@ describe('CascadeQ 完整测试套件', () => {
       expect(task).toHaveBeenCalled();
       expect(handle.getStatus()).toBe(TaskStatus.Success);
     });
+
+    it('暂停后应停止调度新任务', async () => {
+      queue.pause();
+      const task = vi.fn(() => delay(50));
+      queue.add(task, 0);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(task).not.toHaveBeenCalled();
+
+      queue.resume();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(task).toHaveBeenCalled();
+    });
   });
 
   // 优先级调度测试
@@ -169,6 +181,60 @@ describe('CascadeQ 完整测试套件', () => {
       expect(queue.getState().running).toBe(3);
       expect(queue.getState().queues[0].pending).toBe(2);
       expect(queue.getState().queues[1].pending).toBe(5);
+    });
+
+    it('应正确处理多个优先级阈值', async () => {
+      queue = new CascadeQ({
+        thresholds: [0, 5, 10, 15],
+        maxConcurrency: 1
+      });
+
+      const execOrder: number[] = [];
+      queue.pause();
+
+      queue.add(async () => {
+        execOrder.push(4);
+        await delay(50);
+      }, 16);
+      queue.add(async () => {
+        execOrder.push(3);
+        await delay(50);
+      }, 12);
+      queue.add(async () => {
+        execOrder.push(2);
+        await delay(50);
+      }, 6);
+      queue.add(async () => {
+        execOrder.push(1);
+        await delay(50);
+      }, 2);
+
+      queue.resume();
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(execOrder).toEqual([1, 2, 3, 4]);
+    });
+
+    it('应能处理高并发场景', async () => {
+      queue = new CascadeQ({
+        maxConcurrency: 50
+      });
+
+      const taskCount = 1000;
+      const completedTasks = vi.fn();
+
+      for (let i = 0; i < taskCount; i++) {
+        queue.add(
+          async () => {
+            await delay(10);
+            completedTasks();
+          },
+          Math.floor(Math.random() * 10)
+        );
+      }
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(completedTasks).toHaveBeenCalledTimes(taskCount);
     });
   });
 
