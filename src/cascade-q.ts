@@ -15,8 +15,9 @@ import {
   DEFAULT_DECAY_CURVE,
   DEFAULT_TASK_TTL,
   DEFAULT_THRESHOLDS,
-  DEFAULT_CLEANUP_CD,
-  DEFAULT_PRIORITY_CHECK_CD
+  DEFAULT_CLEANUP_INTERVAL,
+  DEFAULT_PRIORITY_CHECK_INTERVAL,
+  DEFAULT_DECAY_INTERVAL
 } from './default';
 
 export class CascadeQ extends EventEmitter {
@@ -26,8 +27,9 @@ export class CascadeQ extends EventEmitter {
   readonly #decayCurve: DecayCurve;
   readonly #calcConcurrency: CalcConcurrency;
   readonly #taskTTL: number;
-  readonly #cleanupCD: number;
-  readonly #priorityCheckCD: number;
+  readonly #cleanupInterval: number;
+  readonly #priorityCheckInterval: number;
+  readonly #priorityDecayInterval: number;
 
   // 队列状态
   #thresholds: ThresholdItem[];
@@ -35,8 +37,7 @@ export class CascadeQ extends EventEmitter {
   #runningCounts: number[] = [];
   #isPaused = false;
   #isDisposed = false;
-  #cleanupInterval?: number;
-
+  #cleanupTimer?: number;
   #lastPriorityCheck: number = Date.now();
 
   get #runningTaskCount(): number {
@@ -54,8 +55,9 @@ export class CascadeQ extends EventEmitter {
     this.#decayCurve = options.decayCurve ?? DEFAULT_DECAY_CURVE;
     this.#calcConcurrency = options.calcConcurrency ?? DEFAULT_CALC_CONCURRENCY;
     this.#taskTTL = options.taskTTL ?? DEFAULT_TASK_TTL; // 默认任务生存时长
-    this.#cleanupCD = options.cleanupCD ?? DEFAULT_CLEANUP_CD; // 默认清理周期
-    this.#priorityCheckCD = options.priorityCheckCD ?? DEFAULT_PRIORITY_CHECK_CD; // 默认优先级检查周期
+    this.#cleanupInterval = options.cleanupInterval ?? DEFAULT_CLEANUP_INTERVAL; // 默认清理周期
+    this.#priorityCheckInterval = options.priorityCheckInterval ?? DEFAULT_PRIORITY_CHECK_INTERVAL; // 默认优先级检查周期
+    this.#priorityDecayInterval = options.priorityDecayInterval ?? DEFAULT_DECAY_INTERVAL;
 
     // 初始化队列：
     // 1. 标准化阈值配置，确保所有阈值配置均为 ThresholdItem 对象，按 value 升序排序
@@ -199,7 +201,7 @@ export class CascadeQ extends EventEmitter {
    */
   #schedule(): void {
     if (this.#isPaused || this.#runningTaskCount >= this.#maxConcurrency) return;
-    if (Date.now() - this.#lastPriorityCheck > this.#priorityCheckCD) {
+    if (Date.now() - this.#lastPriorityCheck > this.#priorityCheckInterval) {
       this.#adjustPriorities();
       this.#lastPriorityCheck = Date.now();
     }
@@ -325,8 +327,8 @@ export class CascadeQ extends EventEmitter {
    * @returns 有效优先级（数值越小优先级越高）
    */
   #calcEffectivePriority(taskItem: TaskItem): number {
-    const minutesElapsed = (Date.now() - taskItem.addedAt) / 60000;
-    return taskItem.basePriority - this.#baseDecay * this.#decayCurve(minutesElapsed);
+    const n = Math.floor((Date.now() - taskItem.addedAt) / this.#priorityDecayInterval);
+    return taskItem.basePriority - this.#baseDecay * this.#decayCurve(n);
   }
 
   /**
@@ -373,7 +375,7 @@ export class CascadeQ extends EventEmitter {
       });
     };
 
-    this.#cleanupInterval = setInterval(checkExpiredTasks, this.#cleanupCD) as unknown as number;
+    this.#cleanupTimer = setInterval(checkExpiredTasks, this.#cleanupInterval) as unknown as number;
   }
 
   /**
@@ -381,9 +383,9 @@ export class CascadeQ extends EventEmitter {
    */
   dispose(): void {
     this.#isDisposed = true;
-    if (this.#cleanupInterval !== undefined) {
-      clearInterval(this.#cleanupInterval);
-      this.#cleanupInterval = undefined;
+    if (this.#cleanupTimer !== undefined) {
+      clearInterval(this.#cleanupTimer);
+      this.#cleanupTimer = undefined;
     }
     this.removeAllListeners();
     this.clear();

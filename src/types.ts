@@ -71,8 +71,9 @@ export interface CascadeQOptions {
   calcConcurrency?: CalcConcurrency;
   taskTTL?: number;
   thresholds?: Array<number | ThresholdItem>;
-  cleanupCD?: number;
-  priorityCheckCD?: number;
+  cleanupInterval?: number;
+  priorityCheckInterval?: number;
+  priorityDecayInterval?: number;
 }
 
 /**

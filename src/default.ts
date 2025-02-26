@@ -43,17 +43,29 @@ export const DEFAULT_MAX_CONCURRENCY: number = 10;
 // 降低基础衰减，HTTP请求场景不需要快速衰减
 export const DEFAULT_BASE_DECAY: number = 0.5;
 
-// 保持衰减曲线为线性变化
-export const DEFAULT_DECAY_CURVE: DecayCurve = m => m;
+/**
+ * 衰减曲线函数，决定任务优先级随时间衰减的速率
+ * 当前使用线性衰减模式：随时间均匀提升任务优先级
+ * 参数n表示经过的时间单位数，即 Math.floor((当前时间 - 任务添加时间) / decayInterval)
+ * n=1时衰减1个单位，n=2时衰减2个单位，依此类推
+ *
+ * 可选的衰减曲线还包括：
+ * - 指数衰减: n => Math.pow(n, 2) （优先级提升加速）
+ * - 对数衰减: n => Math.log2(n+1) （优先级提升减速）
+ */
+export const DEFAULT_DECAY_CURVE: DecayCurve = n => n;
+
+// 默认衰减周期（单位：毫秒）
+export const DEFAULT_DECAY_INTERVAL = 60_000; // 1分钟
+
+// 优先级检查周期（单位：毫秒）
+export const DEFAULT_PRIORITY_CHECK_INTERVAL = 10_000; // 10秒
 
 // 任务生存时长（单位：毫秒）
-export const DEFAULT_TASK_TTL: number = 600_000; // 600秒
+export const DEFAULT_TASK_TTL: number = 120_000; // 120秒
 
 // 根据实际场景，仅需两级优先级：业务请求（高优先级）与日志请求（低优先级）
 export const DEFAULT_THRESHOLDS: Array<number | ThresholdItem> = [0, 10];
 
 // 默认清理周期（单位：毫秒）
-export const DEFAULT_CLEANUP_CD = 60_000;
-
-// 优先级检查周期（单位：毫秒）
-export const DEFAULT_PRIORITY_CHECK_CD = 10_000;
+export const DEFAULT_CLEANUP_INTERVAL = 60_000; // 1分钟

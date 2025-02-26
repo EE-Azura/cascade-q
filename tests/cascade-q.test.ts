@@ -15,10 +15,14 @@ describe('CascadeQ 完整测试套件', () => {
   // 开始测试前启用 fake timers
   beforeAll(() => {
     vi.useFakeTimers();
+    vi.spyOn(Date, 'now').mockImplementation(() => vi.getMockedSystemTime()?.getTime() ?? Date.now());
   });
+
   afterAll(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
+
   beforeEach(() => {
     // 每个测试前重建队列，并确保调度恢复
     queue = new CascadeQ();
@@ -81,27 +85,38 @@ describe('CascadeQ 完整测试套件', () => {
     });
 
     it('时间衰减应提升优先级', async () => {
-      // 调整队列配置，设置较慢衰减便于观察
       queue = new CascadeQ({
         thresholds: [0, 10],
-        baseDecay: 0.1
+        baseDecay: 1,
+        priorityCheckInterval: 1000, // 较短的优先级检查间隔
+        priorityDecayInterval: 100 // 较短的优先级增长周期
       });
+
+      queue.pause(); // 暂停调度
 
       // 添加任务，初始 basePriority 为6（应进入低优先级队列）
       const handle = queue.add(async () => {
         await delay(50);
       }, 6);
 
-      // 初始状态：任务应位于较低优先级的队列中
-      let state = queue.getState();
-      expect(state.queues[1].pending).toBeGreaterThanOrEqual(1);
-      expect(handle.getStatus()).toBe(TaskStatus.Pending);
+      const stateBefore = queue.getState();
+      expect(stateBefore.queues[0].pending).toBeGreaterThanOrEqual(0);
+      expect(stateBefore.queues[1].pending).toBeGreaterThanOrEqual(1);
 
-      // 推进6分钟时间：有效优先级 = 6 - 6*0.1 = 5.4，理论上可能进入高优先级队列
-      await vi.advanceTimersByTimeAsync(6 * 60 * 1000);
-      state = queue.getState();
-      expect(state.queues[0].pending).toBeGreaterThanOrEqual(1);
-      expect(handle.getStatus()).toBe(TaskStatus.Pending);
+      // 初始状态检查
+      await vi.advanceTimersByTimeAsync(1000);
+
+      queue.resume(); // 恢复调度
+
+      const stateAfter = queue.getState();
+
+      expect(stateAfter.queues[0].running).toBeGreaterThanOrEqual(1);
+      expect(stateAfter.queues[1].running).toBeGreaterThanOrEqual(0);
+
+      // 再推进一些时间让任务执行完成
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(handle.getStatus()).toBe(TaskStatus.Success);
     });
   });
 
@@ -162,7 +177,7 @@ describe('CascadeQ 完整测试套件', () => {
     it('应清理超时未执行的任务', async () => {
       // 添加永远无法完成的任务，用于模拟超时
       const task = vi.fn(() => new Promise<void>(() => {}));
-      queue = new CascadeQ({ taskTTL: 2000, cleanupCD: 1000 }); // 设置 TTL 为100ms
+      queue = new CascadeQ({ taskTTL: 2000, cleanupInterval: 1000 }); // 设置 TTL 为100ms
       queue.pause(); // 暂停调度，确保任务不会被立即执行
 
       const handle = queue.add(task, 0);
