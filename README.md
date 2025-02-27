@@ -56,61 +56,23 @@ queue
 handle.cancel();
 ```
 
-## **配置选项**
+```tsx
+import { CascadeQ } from 'cascade-q';
+import type { CascadeQState } from 'cascade-q/types';
 
-| 选项                    | 类型                           | 默认值                        | 描述                     |
-| ----------------------- | ------------------------------ | ----------------------------- | ------------------------ |
-| `maxConcurrency`        | `number`                       | `10`                          | 最大并发任务数           |
-| `thresholds`            | `Array<number\|ThresholdItem>` | `[0, 10]`                     | 优先级队列的阈值配置     |
-| `baseDecay`             | `number`                       | `0.5`                         | 基础优先级衰减率         |
-| `decayCurve`            | `DecayCurve`                   | `n => n`                      | 优先级衰减曲线函数       |
-| `priorityDecayInterval` | `number`                       | `60000`                       | 优先级衰减计算间隔(毫秒) |
-| `calcConcurrency`       | `CalcConcurrency`              | [默认并发策略](#默认并发策略) | 队列并发额度分配算法     |
-| `taskTTL`               | `number`                       | `60000`                       | 任务最大生存时间(毫秒)   |
-| `cleanupInterval`       | `number`                       | `60000`                       | 过期任务清理间隔(毫秒)   |
-| `priorityCheckInterval` | `number`                       | `10000`                       | 优先级检查间隔(毫秒)     |
+// 带有命名的三级优先级队列
+const queue = new CascadeQ({
+  thresholds: [
+    { value: 0, name: 'critical' }, // 关键任务
+    { value: 10, name: 'normal' }, // 普通任务
+    { value: 20, name: 'background' } // 后台任务
+  ]
+});
 
-## **API 参考**
-
-### **队列操作方法**
-
-| 方法       | 参数                                        | 返回值          | 描述                                               |
-| ---------- | ------------------------------------------- | --------------- | -------------------------------------------------- |
-| `add<T>`   | `task: () => Promise<T>, priority?: number` | `TaskHandle<T>` | 添加异步任务到队列，返回任务控制句柄               |
-| `pause`    | 无                                          | `void`          | 暂停队列调度，已执行的任务继续运行，新任务不会启动 |
-| `resume`   | 无                                          | `void`          | 恢复队列调度                                       |
-| `cancel`   | `taskId: symbol`                            | `boolean`       | 取消特定任务，成功返回 `true`                      |
-| `clear`    | 无                                          | `void`          | 清空所有待执行任务                                 |
-| `getState` | 无                                          | `CascadeQState` | 获取队列当前状态信息                               |
-| `dispose`  | 无                                          | `void`          | 释放队列资源，清理定时器，队列不再可用             |
-
-### **事件监听方法**
-
-| 方法  | 参数                                                                  | 返回值 | 描述           |
-| ----- | --------------------------------------------------------------------- | ------ | -------------- |
-| `on`  | `event: QueueEvent, handler: (task: TaskItem, error?: Error) => void` | `void` | 添加事件监听器 |
-| `off` | `event: QueueEvent, handler: (task: TaskItem, error?: Error) => void` | `void` | 移除事件监听器 |
-
-### **TaskHandle 方法**
-
-| 方法        | 参数                        | 返回值             | 描述                                           |
-| ----------- | --------------------------- | ------------------ | ---------------------------------------------- |
-| `cancel`    | 无                          | `boolean`          | 取消任务（仅限`pending`状态），成功返回 `true` |
-| `getStatus` | 无                          | `TaskStatus`       | 获取当前任务状态                               |
-| `then`      | `onfulfilled?, onrejected?` | `Promise<unknown>` | `Promise`接口，支持等待任务完成                |
-| `catch`     | `onrejected`                | `Promise<unknown>` | `Promise`接口，捕获任务错误                    |
-| `finally`   | `onfinally`                 | `Promise<unknown>` | `Promise`接口，无论任务成功或失败都执行        |
-
-## `QueueEvent`
-
-| 事件名称   | 回调参数          | 触发时机                   |
-| ---------- | ----------------- | -------------------------- |
-| `enqueue`  | `TaskItem`        | 任务被添加到队列时         |
-| `start`    | `TaskItem`        | 任务开始执行时             |
-| `success`  | `TaskItem`        | 任务成功完成时             |
-| `fail`     | `TaskItem, Error` | 任务执行失败时             |
-| `complete` | `TaskItem`        | 任务完成时(无论成功或失败) |
-| `cancel`   | `TaskItem`        | 任务被取消时               |
+// 获取命名队列的状态
+const state: CascadeQState = queue.getState();
+const criticalQueueState = state.queues.find(q => q.level === 'critical');
+```
 
 ## **核心概念**
 
@@ -211,6 +173,69 @@ const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index: number, { max, pending
 - **动态调整** - 随着任务执行和添加，自动重新计算最优并发分配
 - **资源利用最大化** - 使用向上取整而非向下取整，确保并发资源得到充分利用
 - **精细控制** - 精确计算每个队列的实际需求，不强制分配不需要的并发额度
+
+## **配置选项**
+
+| 选项                    | 类型                           | 默认值                        | 描述                                                |
+| ----------------------- | ------------------------------ | ----------------------------- | --------------------------------------------------- |
+| `maxConcurrency`        | `number`                       | `10`                          | 最大并发任务数                                      |
+| `thresholds`            | `Array<number\|ThresholdItem>` | `[0, 10]`                     | 优先级队列的阈值配置 [完整配置对象](#thresholditem) |
+| `baseDecay`             | `number`                       | `0.5`                         | 基础优先级衰减率                                    |
+| `decayCurve`            | `DecayCurve`                   | `n => n`                      | 优先级衰减曲线函数                                  |
+| `priorityDecayInterval` | `number`                       | `60000`                       | 优先级衰减计算间隔(毫秒)                            |
+| `calcConcurrency`       | `CalcConcurrency`              | [默认并发策略](#默认并发策略) | 队列并发额度分配算法                                |
+| `taskTTL`               | `number`                       | `60000`                       | 任务最大生存时间(毫秒)                              |
+| `cleanupInterval`       | `number`                       | `60000`                       | 过期任务清理间隔(毫秒)                              |
+| `priorityCheckInterval` | `number`                       | `10000`                       | 优先级检查间隔(毫秒)                                |
+
+### `ThresholdItem`
+
+| 属性    | 类型     | 描述                                                       |
+| ------- | -------- | ---------------------------------------------------------- |
+| `value` | `number` | 优先级阈值，任务的 basePriority ≤ value 将被分配到对应队列 |
+| `name?` | `string` | 可选的队列名称，用于标识队列，便于状态查询和日志记录       |
+
+## **API 参考**
+
+### **队列操作方法**
+
+| 方法       | 参数                                        | 返回值          | 描述                                               |
+| ---------- | ------------------------------------------- | --------------- | -------------------------------------------------- |
+| `add<T>`   | `task: () => Promise<T>, priority?: number` | `TaskHandle<T>` | 添加异步任务到队列，返回任务控制句柄               |
+| `pause`    | 无                                          | `void`          | 暂停队列调度，已执行的任务继续运行，新任务不会启动 |
+| `resume`   | 无                                          | `void`          | 恢复队列调度                                       |
+| `cancel`   | `taskId: symbol`                            | `boolean`       | 取消特定任务，成功返回 `true`                      |
+| `clear`    | 无                                          | `void`          | 清空所有待执行任务                                 |
+| `getState` | 无                                          | `CascadeQState` | 获取队列当前状态信息                               |
+| `dispose`  | 无                                          | `void`          | 释放队列资源，清理定时器，队列不再可用             |
+
+### **事件监听方法**
+
+| 方法  | 参数                                                                  | 返回值 | 描述           |
+| ----- | --------------------------------------------------------------------- | ------ | -------------- |
+| `on`  | `event: QueueEvent, handler: (task: TaskItem, error?: Error) => void` | `void` | 添加事件监听器 |
+| `off` | `event: QueueEvent, handler: (task: TaskItem, error?: Error) => void` | `void` | 移除事件监听器 |
+
+### **TaskHandle 方法**
+
+| 方法        | 参数                        | 返回值             | 描述                                           |
+| ----------- | --------------------------- | ------------------ | ---------------------------------------------- |
+| `cancel`    | 无                          | `boolean`          | 取消任务（仅限`pending`状态），成功返回 `true` |
+| `getStatus` | 无                          | `TaskStatus`       | 获取当前任务状态                               |
+| `then`      | `onfulfilled?, onrejected?` | `Promise<unknown>` | `Promise`接口，支持等待任务完成                |
+| `catch`     | `onrejected`                | `Promise<unknown>` | `Promise`接口，捕获任务错误                    |
+| `finally`   | `onfinally`                 | `Promise<unknown>` | `Promise`接口，无论任务成功或失败都执行        |
+
+## `QueueEvent`
+
+| 事件名称   | 回调参数          | 触发时机                   |
+| ---------- | ----------------- | -------------------------- |
+| `enqueue`  | `TaskItem`        | 任务被添加到队列时         |
+| `start`    | `TaskItem`        | 任务开始执行时             |
+| `success`  | `TaskItem`        | 任务成功完成时             |
+| `fail`     | `TaskItem, Error` | 任务执行失败时             |
+| `complete` | `TaskItem`        | 任务完成时(无论成功或失败) |
+| `cancel`   | `TaskItem`        | 任务被取消时               |
 
 ## **状态定义**
 
