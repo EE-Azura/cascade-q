@@ -79,7 +79,7 @@ handle.cancel();
 | `add<T>`   | `task: () => Promise<T>, priority?: number` | `TaskHandle<T>` | 添加异步任务到队列，返回任务控制句柄               |
 | `pause`    | 无                                          | `void`          | 暂停队列调度，已执行的任务继续运行，新任务不会启动 |
 | `resume`   | 无                                          | `void`          | 恢复队列调度                                       |
-| `cancel`   | `taskId: symbol`                            | `boolean`       | 取消特定任务，成功返回 true                        |
+| `cancel`   | `taskId: symbol`                            | `boolean`       | 取消特定任务，成功返回 `true`                      |
 | `clear`    | 无                                          | `void`          | 清空所有待执行任务                                 |
 | `getState` | 无                                          | `CascadeQState` | 获取队列当前状态信息                               |
 | `dispose`  | 无                                          | `void`          | 释放队列资源，清理定时器，队列不再可用             |
@@ -93,13 +93,13 @@ handle.cancel();
 
 ### **TaskHandle 方法**
 
-| 方法        | 参数                        | 返回值             | 描述                                  |
-| ----------- | --------------------------- | ------------------ | ------------------------------------- |
-| `cancel`    | 无                          | `boolean`          | 取消任务，成功返回 true               |
-| `getStatus` | 无                          | `TaskStatus`       | 获取当前任务状态                      |
-| `then`      | `onfulfilled?, onrejected?` | `Promise<unknown>` | Promise接口，支持等待任务完成         |
-| `catch`     | `onrejected`                | `Promise<unknown>` | Promise接口，捕获任务错误             |
-| `finally`   | `onfinally`                 | `Promise<unknown>` | Promise接口，无论任务成功或失败都执行 |
+| 方法        | 参数                        | 返回值             | 描述                                           |
+| ----------- | --------------------------- | ------------------ | ---------------------------------------------- |
+| `cancel`    | 无                          | `boolean`          | 取消任务（仅限`pending`状态），成功返回 `true` |
+| `getStatus` | 无                          | `TaskStatus`       | 获取当前任务状态                               |
+| `then`      | `onfulfilled?, onrejected?` | `Promise<unknown>` | `Promise`接口，支持等待任务完成                |
+| `catch`     | `onrejected`                | `Promise<unknown>` | `Promise`接口，捕获任务错误                    |
+| `finally`   | `onfinally`                 | `Promise<unknown>` | `Promise`接口，无论任务成功或失败都执行        |
 
 ## `QueueEvent`
 

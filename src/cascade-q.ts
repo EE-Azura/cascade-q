@@ -147,6 +147,7 @@ export class CascadeQ extends EventEmitter {
       temp.forEach(item => queue.enqueue(item));
       if (found) return true;
     }
+    console.warn(`Task ${taskId.toString()} not found or is not pending`);
     return false;
   }
 
