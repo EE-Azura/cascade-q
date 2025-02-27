@@ -1,6 +1,6 @@
 {
   "name": "cascade-q",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "",
   "type": "module",
   "main": "dist/cascade-q.js",
@@ -27,7 +27,19 @@
   "keywords": [
     "nodejs",
     "javascript",
-    "queue"
+    "typescript",
+    "queue",
+    "priority-queue",
+    "task-scheduler",
+    "async",
+    "concurrency",
+    "concurrency-control",
+    "throttle",
+    "rate-limiting",
+    "task-manager",
+    "promise",
+    "event-driven",
+    "multi-priority"
   ],
   "author": "EE_Azura",
   "license": "MIT",
