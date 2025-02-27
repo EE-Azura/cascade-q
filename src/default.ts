@@ -62,7 +62,7 @@ export const DEFAULT_DECAY_INTERVAL = 60_000; // 1分钟
 export const DEFAULT_PRIORITY_CHECK_INTERVAL = 10_000; // 10秒
 
 // 任务生存时长（单位：毫秒）
-export const DEFAULT_TASK_TTL: number = 120_000; // 120秒
+export const DEFAULT_TASK_TTL: number = 60_000; // 60秒
 
 // 根据实际场景，仅需两级优先级：业务请求（高优先级）与日志请求（低优先级）
 export const DEFAULT_THRESHOLDS: Array<number | ThresholdItem> = [0, 10];
