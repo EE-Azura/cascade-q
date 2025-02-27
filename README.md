@@ -66,7 +66,7 @@ handle.cancel();
 | `decayCurve`            | `DecayCurve`                   | `n => n`                      | 优先级衰减曲线函数       |
 | `priorityDecayInterval` | `number`                       | `60000`                       | 优先级衰减计算间隔(毫秒) |
 | `calcConcurrency`       | `CalcConcurrency`              | [默认并发策略](#默认并发策略) | 队列并发额度分配算法     |
-| `taskTTL`               | `number`                       | `120000`                      | 任务最大生存时间(毫秒)   |
+| `taskTTL`               | `number`                       | `60000`                       | 任务最大生存时间(毫秒)   |
 | `cleanupInterval`       | `number`                       | `60000`                       | 过期任务清理间隔(毫秒)   |
 | `priorityCheckInterval` | `number`                       | `10000`                       | 优先级检查间隔(毫秒)     |
 
