@@ -22,19 +22,20 @@ import { CalcConcurrency, DecayCurve, ThresholdItem, CascadeQState } from './typ
  * @returns {number} 当前级别可以分配的并发数
  */
 export const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index, { max, pending, queues }: CascadeQState) => {
-  const totalLevels = queues.length;
-  const pendingTasks = queues.map(queue => queue.pending);
-  const totalPending = pending; // 总等待任务数
+  // 第一阶段: 基础计算
+  if (pending === 0 || queues[index].pending === 0) return 0;
 
-  if (totalPending === 0) {
-    return 0; // 没有等待任务时，不分配并发数
+  const totalLevels = queues.length;
+  const levelWeight = (totalLevels - index) / totalLevels;
+  let levelShare = Math.ceil((max * levelWeight * queues[index].pending) / pending);
+  levelShare = Math.min(levelShare, queues[index].pending);
+
+  // 第二阶段: 确保高优先级队列获得足够资源
+  if (index === 0 && levelShare < queues[0].pending) {
+    levelShare = Math.min(Math.ceil(max * 0.6), queues[0].pending);
   }
 
-  const levelPending = pendingTasks[index];
-  const levelWeight = (totalLevels - index) / totalLevels;
-  const levelShare = Math.floor((max * levelWeight * levelPending) / totalPending);
-
-  return Math.max(Math.min(levelShare, levelPending), 1); // 分配的并发数不能超过等待任务数, 且至少为1
+  return levelShare;
 };
 
 // 默认最大并发数
