@@ -218,13 +218,13 @@ const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index: number, { max, pending
 
 ### **TaskHandle 方法**
 
-| 方法        | 参数                        | 返回值             | 描述                                           |
-| ----------- | --------------------------- | ------------------ | ---------------------------------------------- |
-| `cancel`    | 无                          | `boolean`          | 取消任务（仅限`pending`状态），成功返回 `true` |
-| `getStatus` | 无                          | `TaskStatus`       | 获取当前任务状态                               |
-| `then`      | `onfulfilled?, onrejected?` | `Promise<unknown>` | `Promise`接口，支持等待任务完成                |
-| `catch`     | `onrejected`                | `Promise<unknown>` | `Promise`接口，捕获任务错误                    |
-| `finally`   | `onfinally`                 | `Promise<unknown>` | `Promise`接口，无论任务成功或失败都执行        |
+| 方法        | 参数                        | 返回值             | 描述                                             |
+| ----------- | --------------------------- | ------------------ | ------------------------------------------------ |
+| `cancel`    | 无                          | `boolean`          | 取消任务（仅限 `pending` 状态），成功返回 `true` |
+| `getStatus` | 无                          | `TaskStatus`       | 获取当前任务状态                                 |
+| `then`      | `onfulfilled?, onrejected?` | `Promise<unknown>` | `Promise` 接口，支持等待任务完成                 |
+| `catch`     | `onrejected`                | `Promise<unknown>` | `Promise` 接口，捕获任务错误                     |
+| `finally`   | `onfinally`                 | `Promise<unknown>` | `Promise` 接口，无论任务成功或失败都执行         |
 
 ## `QueueEvent`
 
