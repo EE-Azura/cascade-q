@@ -41,6 +41,17 @@ const handle: TaskHandle = queue.add(async (): Promise<unknown> => {
   return response.json();
 }, 5); // 优先级5（低）
 
+// 等待任务完成并获取结果
+const result = await queue.add(async () => {
+  return await fetchData();
+});
+
+// 或使用Promise链
+queue
+  .add(async () => fetchData())
+  .then(result => console.log(result))
+  .catch(error => console.error(error));
+
 // 取消特定任务
 handle.cancel();
 ```
@@ -63,22 +74,22 @@ handle.cancel();
 
 ### **队列操作方法**
 
-| 方法       | 参数                                              | 返回值          | 描述                                               |
-| ---------- | ------------------------------------------------- | --------------- | -------------------------------------------------- |
-| `add`      | `task: () => Promise<unknown>, priority?: number` | `TaskHandle`    | 添加异步任务到队列，返回任务控制句柄               |
-| `pause`    | 无                                                | `void`          | 暂停队列调度，已执行的任务继续运行，新任务不会启动 |
-| `resume`   | 无                                                | `void`          | 恢复队列调度                                       |
-| `cancel`   | `taskId: symbol`                                  | `boolean`       | 取消特定任务，成功返回 true                        |
-| `clear`    | 无                                                | `void`          | 清空所有待执行任务                                 |
-| `getState` | 无                                                | `CascadeQState` | 获取队列当前状态信息                               |
-| `dispose`  | 无                                                | `void`          | 释放队列资源，清理定时器，队列不再可用             |
+| 方法       | 参数                                        | 返回值          | 描述                                               |
+| ---------- | ------------------------------------------- | --------------- | -------------------------------------------------- |
+| `add<T>`   | `task: () => Promise<T>, priority?: number` | `TaskHandle<T>` | 添加异步任务到队列，返回任务控制句柄               |
+| `pause`    | 无                                          | `void`          | 暂停队列调度，已执行的任务继续运行，新任务不会启动 |
+| `resume`   | 无                                          | `void`          | 恢复队列调度                                       |
+| `cancel`   | `taskId: symbol`                            | `boolean`       | 取消特定任务，成功返回 true                        |
+| `clear`    | 无                                          | `void`          | 清空所有待执行任务                                 |
+| `getState` | 无                                          | `CascadeQState` | 获取队列当前状态信息                               |
+| `dispose`  | 无                                          | `void`          | 释放队列资源，清理定时器，队列不再可用             |
 
 ### **事件监听方法**
 
-| 方法  | 参数                                       | 返回值 | 描述           |
-| ----- | ------------------------------------------ | ------ | -------------- |
-| `on`  | `event: QueueEvent, handler: EventHandler` | `void` | 添加事件监听器 |
-| `off` | `event: QueueEvent, handler: EventHandler` | `void` | 移除事件监听器 |
+| 方法  | 参数                                                                  | 返回值 | 描述           |
+| ----- | --------------------------------------------------------------------- | ------ | -------------- |
+| `on`  | `event: QueueEvent, handler: (task: TaskItem, error?: Error) => void` | `void` | 添加事件监听器 |
+| `off` | `event: QueueEvent, handler: (task: TaskItem, error?: Error) => void` | `void` | 移除事件监听器 |
 
 ### **TaskHandle 方法**
 
