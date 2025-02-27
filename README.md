@@ -151,18 +151,21 @@ const queue2 = new CascadeQ({
 });
 ```
 
-### **并发控制**
+### **并发控制机制**
 
-CascadeQ 提供两级并发控制：
+CascadeQ 提供两层级的并发管理：
+
+- **全局并发控制** - 通过 `maxConcurrency` 限制总并发数
+- **队列级并发分配** - 通过 `calcConcurrency` 在不同优先级队列间分配并发额度
 
 ```tsx
 import { CascadeQ } from 'cascade-q';
 import type { CalcConcurrency, CascadeQState } from 'cascade-q/types';
 
 // 自定义并发分配策略
+// *注意：这是简化示例，实际应用中应考虑总并发限制和更多队列的情况
 const customConcurrencyStrategy: CalcConcurrency = (index: number, state: CascadeQState): number => {
-  // 无待处理任务时返回0
-  if (state.queues[index].pending === 0) return 0;
+  if (pending === 0 || queues[index].pending === 0) return 0;
   // 高优先级队列(index=0)获得更多并发额度
   if (index === 0) return Math.min(8, state.queues[0].pending);
   // 低优先级队列每个最多2个并发
@@ -170,6 +173,7 @@ const customConcurrencyStrategy: CalcConcurrency = (index: number, state: Cascad
 };
 
 const queue = new CascadeQ({
+  thresholds: [0, 10]
   maxConcurrency: 10, // 全局最大并发数
   calcConcurrency: customConcurrencyStrategy
 });
@@ -177,34 +181,36 @@ const queue = new CascadeQ({
 
 ### 默认并发策略
 
-CascadeQ 的默认并发分配策略采用"加权比例分配"原则，通过队列优先级和任务数量动态调整并发资源，确保系统资源高效利用：
+CascadeQ 的默认并发分配策略采用"两阶段加权分配"原则，通过队列优先级和任务数量动态调整并发资源，确保系统资源高效利用：
 
 ```tsx
 // 默认并发计算策略
 const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index: number, { max, pending, queues }: CascadeQState): number => {
-  const totalLevels = queues.length;
-  const pendingTasks = queues.map(queue => queue.pending);
-  const totalPending = pending; // 总等待任务数
+  // 第一阶段: 基础计算
+  if (pending === 0 || queues[index].pending === 0) return 0;
 
-  if (totalPending === 0) {
-    return 0; // 没有等待任务时，不分配并发数
+  const totalLevels = queues.length;
+  const levelWeight = (totalLevels - index) / totalLevels;
+  let levelShare = Math.ceil((max * levelWeight * queues[index].pending) / pending);
+  levelShare = Math.min(levelShare, queues[index].pending);
+
+  // 第二阶段: 确保高优先级队列获得足够资源
+  if (index === 0 && levelShare < queues[0].pending) {
+    levelShare = Math.min(Math.ceil(max * 0.6), queues[0].pending);
   }
 
-  const levelPending = pendingTasks[index];
-  const levelWeight = (totalLevels - index) / totalLevels;
-  const levelShare = Math.floor((max * levelWeight * levelPending) / totalPending);
-
-  return Math.max(Math.min(levelShare, levelPending), 1); // 分配的并发数不能超过等待任务数, 且至少为1
+  return levelShare;
 };
 ```
 
-### **策略特点**
+#### **策略特点**
 
 - **优先级加权** - 优先级越高的队列获得更高权重，如三级队列中最高优先级队列权重为100%，中等优先级队列权重为66.7%，低优先级队列权重为33.3%
 - **按需分配** - 考虑各队列任务数量，根据任务分布按比例分配并发资源
-- **最低保障** - 确保每个有任务的队列至少分配一个并发额度，避免低优先级任务完全饿死
+- **高优先级保障** - 确保高优先级队列获得至少60%的并发资源（如有需要）
 - **动态调整** - 随着任务执行和添加，自动重新计算最优并发分配
-- **公平共享** - 充分利用可用并发资源，不会出现并发资源闲置而任务等待的情况
+- **资源利用最大化** - 使用向上取整而非向下取整，确保并发资源得到充分利用
+- **精细控制** - 精确计算每个队列的实际需求，不强制分配不需要的并发额度
 
 ## **状态定义**
 
