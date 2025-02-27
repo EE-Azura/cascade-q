@@ -1,3 +1,5 @@
+简体中文 | [English](./README_en.md)
+
 # **CascadeQ**
 
 CascadeQ 是一个多优先级异步任务调度器，专为需要精细任务优先级控制和并发管理的 JavaScript/TypeScript 应用设计。
