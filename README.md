@@ -149,7 +149,6 @@ import { CascadeQ } from 'cascade-q';
 import type { CalcConcurrency, CascadeQState } from 'cascade-q/types';
 
 // 自定义并发分配策略
-
 const customConcurrencyStrategy: CalcConcurrency = (index: number, state: CascadeQState): number => {
   // 无待处理任务时返回0
   if (state.queues[index].pending === 0) return 0;
@@ -171,7 +170,7 @@ CascadeQ 的默认并发分配策略采用"加权比例分配"原则，通过队
 
 ```tsx
 // 默认并发计算策略
-const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index, { max, pending, queues }: CascadeQState) => {
+const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index: number, { max, pending, queues }: CascadeQState): number => {
   const totalLevels = queues.length;
   const pendingTasks = queues.map(queue => queue.pending);
   const totalPending = pending; // 总等待任务数
