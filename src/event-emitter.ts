@@ -24,8 +24,8 @@ export class EventEmitter {
     }
   }
 
-  emit(event: QueueEvent, task: TaskItem): void {
-    this.handlers.get(event)?.forEach(handler => handler(task));
+  emit(event: QueueEvent, task: TaskItem, error?: Error): void {
+    this.handlers.get(event)?.forEach(handler => handler(task, error));
   }
 
   removeAllListeners(): void {

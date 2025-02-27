@@ -98,4 +98,4 @@ export type QueueEvent = 'enqueue' | 'start' | 'success' | 'fail' | 'complete' |
 /**
  * 事件处理器类型，用于处理任务队列的不同事件
  */
-export type EventHandler = (task: TaskItem) => void;
+export type EventHandler = (task: TaskItem, error?: Error) => void;

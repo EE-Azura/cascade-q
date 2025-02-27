@@ -258,7 +258,7 @@ export class CascadeQ extends EventEmitter {
     } catch (error) {
       console.error('Task execution failed:', error);
       taskItem.status = TaskStatus.Failed;
-      this.emit('fail', taskItem);
+      this.emit('fail', taskItem, error as Error);
     } finally {
       this.#runningCounts[queueIndex]--;
       this.emit('complete', taskItem);
