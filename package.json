@@ -1,7 +1,7 @@
 {
   "name": "cascade-q",
   "version": "1.0.0",
-  "description": "",
+  "description": "A flexible async task scheduler with multi-level priorities, concurrency control, and priority decay for Javascript and Typescript.",
   "type": "module",
   "main": "dist/cascade-q.js",
   "commonjs": "dist/cascade-q.cjs",
