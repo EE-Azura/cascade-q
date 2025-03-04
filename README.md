@@ -65,9 +65,9 @@ import type { CascadeQState } from 'cascade-q/types';
 // 带有命名的三级优先级队列
 const queue = new CascadeQ({
   thresholds: [
-    { value: 0, name: 'critical' }, // 关键任务
-    { value: 10, name: 'normal' }, // 普通任务
-    { value: 20, name: 'background' } // 后台任务
+    { value: 0, level: 'critical' }, // 关键任务
+    { value: 10, level: 'normal' }, // 普通任务
+    { value: 20, level: 'background' } // 后台任务
   ]
 });
 
@@ -129,7 +129,7 @@ import type { CalcConcurrency, CascadeQState } from 'cascade-q/types';
 // 自定义并发分配策略
 // *注意：这是简化示例，实际应用中应考虑总并发限制和更多队列的情况
 const customConcurrencyStrategy: CalcConcurrency = (index: number, state: CascadeQState): number => {
-  if (pending === 0 || queues[index].pending === 0) return 0;
+  if (state.pending === 0 || state.queues[index].pending === 0) return 0; // 正确
   // 高优先级队列(index=0)获得更多并发额度
   if (index === 0) return Math.min(8, state.queues[0].pending);
   // 低优先级队列每个最多2个并发
@@ -178,24 +178,24 @@ const DEFAULT_CALC_CONCURRENCY: CalcConcurrency = (index: number, { max, pending
 
 ## **配置选项**
 
-| 选项                    | 类型                           | 默认值                        | 描述                                                |
-| ----------------------- | ------------------------------ | ----------------------------- | --------------------------------------------------- |
-| `maxConcurrency`        | `number`                       | `10`                          | 最大并发任务数                                      |
-| `thresholds`            | `Array<number\|ThresholdItem>` | `[0, 10]`                     | 优先级队列的阈值配置 [完整配置对象](#thresholditem) |
-| `baseDecay`             | `number`                       | `0.5`                         | 基础优先级衰减率                                    |
-| `decayCurve`            | `DecayCurve`                   | `n => n`                      | 优先级衰减曲线函数                                  |
-| `priorityDecayInterval` | `number`                       | `60000`                       | 优先级衰减计算间隔(毫秒)                            |
-| `calcConcurrency`       | `CalcConcurrency`              | [默认并发策略](#默认并发策略) | 队列并发额度分配算法                                |
-| `taskTTL`               | `number`                       | `60000`                       | 任务最大生存时间(毫秒)                              |
-| `cleanupInterval`       | `number`                       | `60000`                       | 过期任务清理间隔(毫秒)                              |
-| `priorityCheckInterval` | `number`                       | `10000`                       | 优先级检查间隔(毫秒)                                |
+| 选项                    | 类型                             | 默认值                        | 描述                                                  |
+| ----------------------- | -------------------------------- | ----------------------------- | ----------------------------------------------------- |
+| `maxConcurrency`        | `number`                         | `10`                          | 最大并发任务数                                        |
+| `thresholds`            | `Array<number\|ThresholdOption>` | `[0, 10]`                     | 优先级队列的阈值配置 [完整配置对象](#thresholdoption) |
+| `baseDecay`             | `number`                         | `0.5`                         | 基础优先级衰减率                                      |
+| `decayCurve`            | `DecayCurve`                     | `n => n`                      | 优先级衰减曲线函数                                    |
+| `priorityDecayInterval` | `number`                         | `60000`                       | 优先级衰减计算间隔(毫秒)                              |
+| `calcConcurrency`       | `CalcConcurrency`                | [默认并发策略](#默认并发策略) | 队列并发额度分配算法                                  |
+| `taskTTL`               | `number`                         | `60000`                       | 任务最大生存时间(毫秒)                                |
+| `cleanupInterval`       | `number`                         | `60000`                       | 过期任务清理间隔(毫秒)                                |
+| `priorityCheckInterval` | `number`                         | `10000`                       | 优先级检查间隔(毫秒)                                  |
 
-### `ThresholdItem`
+### `ThresholdOption`
 
-| 属性    | 类型     | 描述                                                       |
-| ------- | -------- | ---------------------------------------------------------- |
-| `value` | `number` | 优先级阈值，任务的 basePriority ≤ value 将被分配到对应队列 |
-| `name?` | `string` | 可选的队列名称，用于标识队列，便于状态查询和日志记录       |
+| 属性    | 类型             | 描述                                                       |
+| ------- | ---------------- | ---------------------------------------------------------- |
+| `value` | `number`         | 优先级阈值，任务的 basePriority ≤ value 将被分配到对应队列 |
+| `level` | `string\|number` | 可选的队列名称，用于标识队列，便于状态查询和日志记录       |
 
 ## **API 参考**
 
