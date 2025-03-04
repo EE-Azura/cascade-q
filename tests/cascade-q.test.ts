@@ -64,6 +64,106 @@ describe('CascadeQ 完整测试套件', () => {
       await vi.advanceTimersByTimeAsync(100);
       expect(task).toHaveBeenCalled();
     });
+
+    it('TaskHandle应作为完整的Promise使用', async () => {
+      const testValue = { data: 'test' };
+
+      // 创建返回特定值的任务
+      const handle = queue.add(async () => testValue);
+
+      // 测试Promise接口的各个方法
+      let thenCalled = false;
+      let finallyCalled = false;
+
+      console.log('handle', handle);
+
+      const result = await handle
+        .then(value => {
+          thenCalled = true;
+          expect(value).toEqual(testValue);
+          return value;
+        })
+        .finally(() => {
+          finallyCalled = true;
+        });
+
+      expect(result).toEqual(testValue);
+      expect(thenCalled).toBe(true);
+      expect(finallyCalled).toBe(true);
+      expect(handle.getStatus()).toBe(TaskStatus.Success);
+    });
+
+    it('clear方法应清空所有待执行任务', async () => {
+      // 暂停队列，添加多个任务
+      queue.pause();
+      const tasks = Array(5)
+        .fill(null)
+        .map(() => vi.fn(() => delay(50)));
+      const handles = tasks.map(task => queue.add(task));
+
+      // 验证任务已添加
+      expect(queue.getState().pending).toBe(5);
+
+      // 清空队列
+      queue.clear();
+
+      // 验证队列为空
+      expect(queue.getState().pending).toBe(0);
+
+      // 验证所有任务都标记为已取消
+      handles.forEach(handle => {
+        expect(handle.getStatus()).toBe(TaskStatus.Cancelled);
+      });
+
+      // 恢复队列运行，确认没有任务执行
+      queue.resume();
+      await vi.advanceTimersByTimeAsync(100);
+      tasks.forEach(task => {
+        expect(task).not.toHaveBeenCalled();
+      });
+    });
+
+    it('off方法应正确移除事件监听器', async () => {
+      const handler = vi.fn();
+
+      // 添加事件监听器
+      queue.on('complete', handler);
+
+      // 执行一个任务，验证事件触发
+      queue.add(() => delay(10));
+      await vi.advanceTimersByTimeAsync(50);
+      expect(handler).toHaveBeenCalledTimes(1);
+
+      // 移除事件监听器
+      queue.off('complete', handler);
+
+      // 再执行一个任务，验证事件不再触发
+      queue.add(() => delay(10));
+      await vi.advanceTimersByTimeAsync(50);
+      expect(handler).toHaveBeenCalledTimes(1); // 仍然只调用了一次
+    });
+
+    it('应支持命名阈值并通过名称查找队列', async () => {
+      queue = new CascadeQ({
+        thresholds: [
+          { value: 0, level: 'critical' },
+          { value: 10, level: 'normal' }
+        ]
+      });
+      queue.pause(); // 暂停调度
+
+      // 添加任务到命名队列
+      queue.add(() => delay(50), 0); // 进入critical队列
+
+      // 验证可以通过名称查找队列状态
+      const state = queue.getState();
+      const criticalQueue = state.queues.find(q => q.level === 'critical');
+
+      console.log('state', state);
+
+      expect(criticalQueue).toBeDefined();
+      expect(criticalQueue!.pending).toBe(1);
+    });
   });
 
   // 优先级调度测试
@@ -326,7 +426,7 @@ describe('CascadeQ 完整测试套件', () => {
         throw new Error('Test Error');
       };
 
-      queue.add(failingTask, 0);
+      queue.add(failingTask, 0).catch(() => {}); // 忽略异常
       await vi.advanceTimersByTimeAsync(100);
 
       expect(onFail).toHaveBeenCalled();
