@@ -5,7 +5,7 @@
 /**
  * CascadeQ - 多优先级任务调度器
  */
-import { CascadeQState, TaskItem, TaskStatus, ThresholdItem, CalcConcurrency, CascadeQOptions, TaskHandle, DecayCurve } from './types';
+import { CascadeQState, TaskItem, TaskStatus, ThresholdOption, ThresholdItem, CalcConcurrency, CascadeQOptions, TaskHandle, DecayCurve } from './types';
 import { EventEmitter } from './event-emitter';
 import { PriorityQueue } from './priority-queue';
 import {
@@ -19,6 +19,7 @@ import {
   DEFAULT_PRIORITY_CHECK_INTERVAL,
   DEFAULT_DECAY_INTERVAL
 } from './default';
+import { withResolvers } from './utils';
 
 export class CascadeQ extends EventEmitter {
   // 配置选项（只读属性）
@@ -83,17 +84,25 @@ export class CascadeQ extends EventEmitter {
 
   /**
    * 添加异步任务到队列
+   * @template T 任务返回值类型
    * @param task 返回 Promise 的异步函数
    * @param priority 基础优先级（数值越小优先级越高），可选，默认由系统分配
-   * @returns {TaskHandle} 返回任务控制句柄，用于任务取消
+   * @returns {TaskHandle} 返回任务控制句柄，用于任务取消和结果获取
    */
-  add(task: () => Promise<unknown>, priority?: number): TaskHandle {
+  add<T = unknown>(task: () => Promise<T>, priority?: number): TaskHandle {
     if (this.#isDisposed) {
       throw new Error('Queue has been disposed');
     }
+
+    const { promise, resolve, reject } = withResolvers<unknown>();
+
     const taskItem: TaskItem = {
       id: Symbol(),
-      task,
+      task: () =>
+        task().then(resolve, error => {
+          reject(error); // 拒绝外部 TaskHandle Promise
+          return Promise.reject(error); // 确保内部错误处理正确工作
+        }),
       basePriority: priority ?? this.#getDefaultPriority(),
       addedAt: Date.now(),
       status: TaskStatus.Pending
@@ -105,7 +114,7 @@ export class CascadeQ extends EventEmitter {
     this.#enqueueTask(taskItem);
     this.emit('enqueue', taskItem);
     this.#schedule();
-    return this.#createTaskHandle(taskItem);
+    return this.#createTaskHandle(promise, taskItem);
   }
 
   /**
@@ -169,7 +178,15 @@ export class CascadeQ extends EventEmitter {
    * 获取当前队列状态
    * @returns {CascadeQState} 对象，包含当前队列的运行状态
    */
-  getState(needConcurrency = true): CascadeQState {
+  getState(): CascadeQState {
+    return this.#getState(true);
+  }
+
+  /**
+   * 获取当前队列状态 (私有方法)
+   * @returns {CascadeQState} 对象，包含当前队列的运行状态
+   */
+  #getState(needConcurrency = true): CascadeQState {
     return {
       running: this.#runningTaskCount,
       pending: this.#priorityQueues.reduce((sum, q) => sum + q.size, 0),
@@ -311,14 +328,14 @@ export class CascadeQ extends EventEmitter {
 
   /**
    * 标准化阈值配置，确保所有阈值配置均为 ThresholdItem 对象，按 value 升序排序
-   * @param input 支持数字或 ThresholdItem 数组形式
+   * @param input 支持数字或 ThresholdOption 数组形式
    * @returns 标准化后的 ThresholdItem 数组
    */
-  #normalizeThresholds(input: Array<number | ThresholdItem>): ThresholdItem[] {
+  #normalizeThresholds(input: Array<number | ThresholdOption>): ThresholdItem[] {
     const items = input.map(item => (typeof item === 'number' ? { value: item, level: Symbol.for(`Level_${item}`) } : item)).sort((a, b) => a.value - b.value);
     return items.map((item, index) => ({
       ...item,
-      getConcurrency: () => this.#calcConcurrency(index, this.getState(false))
+      getConcurrency: () => this.#calcConcurrency(index, this.#getState(false))
     }));
   }
 
@@ -342,15 +359,16 @@ export class CascadeQ extends EventEmitter {
 
   /**
    * 创建任务句柄，便于外部取消任务
+   * @param task 任务执行函数
    * @param taskItem 任务项
    * @returns TaskHandle 对象，包含任务 id 和取消回调
    */
-  #createTaskHandle(taskItem: TaskItem): TaskHandle {
-    return {
+  #createTaskHandle(promise: Promise<unknown>, taskItem: TaskItem): TaskHandle {
+    return Object.assign(promise, {
       id: taskItem.id,
       cancel: () => this.cancel(taskItem.id),
       getStatus: () => taskItem.status
-    };
+    }) as TaskHandle;
   }
 
   /**

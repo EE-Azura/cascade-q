@@ -47,6 +47,14 @@ export interface TaskItem {
 export type ThresholdLevel = string | symbol;
 
 /**
+ * 阈值选项，包含阈值数值和阈值级别
+ */
+export type ThresholdOption = {
+  value: number;
+  level: ThresholdLevel;
+};
+
+/**
  * 阈值项，用于划分不同优先级队列，
  * 包含级别标识、数值阈值和该级别允许的并发数
  */
@@ -70,7 +78,7 @@ export interface CascadeQOptions {
   decayCurve?: DecayCurve;
   calcConcurrency?: CalcConcurrency;
   taskTTL?: number;
-  thresholds?: Array<number | ThresholdItem>;
+  thresholds?: Array<number | ThresholdOption>;
   cleanupInterval?: number;
   priorityCheckInterval?: number;
   priorityDecayInterval?: number;
@@ -83,6 +91,9 @@ export interface TaskHandle {
   id: symbol;
   cancel: () => boolean;
   getStatus: () => TaskStatus;
+  then: (onFulfilled?: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) => Promise<unknown>;
+  catch: (onRejected?: (reason: unknown) => unknown) => Promise<unknown>;
+  finally: (onFinally?: () => void) => Promise<unknown>;
 }
 
 /**
